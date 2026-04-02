@@ -1,0 +1,62 @@
+# DocGen-API — standalone development compose
+# Use the root-level docker-compose.yaml to run with DocGen-RAG
+
+version: '3.4'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: docgen-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: docgen
+      POSTGRES_PASSWORD: docgen_password
+      POSTGRES_DB: docgen_saas
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: docgen-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: docgen-api
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      - POSTGRES_SERVER=postgres
+      - POSTGRES_USER=docgen
+      - POSTGRES_PASSWORD=docgen_password
+      - POSTGRES_DB=docgen_saas
+      - REDIS_URL=redis://redis:6379/0
+    restart: on-failure
+
+  worker:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    container_name: docgen-worker
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      - DATABASE_URL=postgresql://docgen:docgen_password@postgres:5432/docgen_saas
+      - REDIS_URL=redis://redis:6379/0
+    restart: on-failure
+
+volumes:
+  postgres_data:
+  redis_data:

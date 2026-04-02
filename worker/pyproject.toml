@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "docgen-worker"
+version = "0.1.0"
+description = "Celery worker for DocGen-RAG documentation pipeline"
+requires-python = ">=3.10"
+dependencies = [
+    # Task queue
+    "celery",
+    "redis",
+
+    # Database (sync driver for Celery)
+    "sqlalchemy",
+    "psycopg2-binary",
+
+    # Settings
+    "pydantic-settings",
+    "pyyaml",
+
+    # DocGen pipeline dependencies
+    "haystack-ai",
+    "weaviate-haystack",
+    "sentence-transformers",
+    "gitpython",
+    "arize-phoenix>=4.0.0",
+    "openinference-instrumentation-haystack",
+    "ollama-haystack",
+    "google-genai-haystack",
+    "accelerate",
+    "tree-sitter",
+    "tree-sitter-language-pack",
+    "gitignore-parser>=0.1.13",
+    "scikit-learn",
+    "numpy",
+]
+
+[tool.setuptools]
+packages = {find = {where = [".."], include = ["worker*", "shared*", "src*", "prompts*"]}}
