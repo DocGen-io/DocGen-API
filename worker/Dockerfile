@@ -14,15 +14,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="/usr/local/bin" sh
 
 # Copy worker dependency manifest
-COPY worker/pyproject.toml worker/pyproject.toml
+COPY DocGen-API/worker/pyproject.toml worker/pyproject.toml
 
-# Copy the full project source (pipelines, components, prompts, shared)
-COPY src/ src/
-COPY shared/ shared/
-COPY worker/ worker/
-COPY prompts/ prompts/
-COPY config.yaml config.yaml
-COPY queries/ queries/
+# Copy DocGen-RAG pipeline source, prompts, config, and queries
+COPY DocGen-RAG/src/ src/
+# Overlay DocGen-API src (saas_api models needed by shared/)
+COPY DocGen-API/src/ src/
+COPY DocGen-RAG/prompts/ prompts/
+COPY DocGen-RAG/config.yaml config.yaml
+COPY DocGen-RAG/queries/ queries/
+
+# Copy DocGen-API shared code and worker
+COPY DocGen-API/shared/ shared/
+COPY DocGen-API/worker/ worker/
 
 # Install worker dependencies
 RUN cd worker && uv sync --no-dev --no-install-project

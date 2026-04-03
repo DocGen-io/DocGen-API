@@ -13,13 +13,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="/usr/local/bin" sh
 
 # Copy dependency files
-COPY pyproject.toml ./
+COPY DocGen-API/pyproject.toml ./
 
 # Install dependencies using uv sync
 RUN uv sync --no-dev --no-install-project
 
-# Copy project files
-COPY . .
+# Copy DocGen-API project files
+COPY DocGen-API/src/ src/
+COPY DocGen-API/shared/ shared/
+COPY DocGen-API/alembic.ini alembic.ini
+
+# Copy prompts from DocGen-RAG (used by init_db seeding)
+COPY DocGen-RAG/prompts/ prompts/
 
 EXPOSE 8000
 
