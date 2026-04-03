@@ -1,0 +1,67 @@
+"""
+Default configuration for teams.
+Derived from the standalone DocGen-RAG config.yaml.
+"""
+from typing import Any, Dict
+
+DEFAULT_TEAM_CONFIG: Dict[str, Any] = {
+    "rag": {
+        "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+        "top_k_retriever": 2,
+        "top_k_reranker": 2,
+        "chunk_size": 500,
+    },
+    "WEAVIATE_URL": "http://127.0.0.1:8080",
+    "WEAVIATE_API_KEY": None,
+    "tracing": True,
+    "phoenix_data_dir": "~/.phoenix_data",
+    
+    "code_analyzer": {
+        "active_generator": "gemini",
+        "analyzer_output_path": "analyzer_output",
+        "dependency_search_top_k": 100,
+    },
+    
+    "generators": {
+        "ollama": {
+            "url": "http://127.0.0.1:11434",
+            "api_key": "",
+            "model": "qwen2.5-coder:3b",
+        },
+        "gemini": {
+            "project_id": "${GOOGLE_CLOUD_PROJECT}",
+            "location": "${GOOGLE_CLOUD_LOCATION}",
+            "model": "gemini-2.5-flash-lite",
+        }
+    },
+    
+    "doc_creator": {
+        "active_generator": "gemini",
+        "output_dir": "output",
+    },
+    
+    "doc_merger": {
+        "api_title": "API Documentation",
+        "api_version": "1.0.0",
+        "api_description": "Auto-generated REST API documentation",
+        "base_url": "http://localhost:3000",
+    },
+    
+    "app": {
+        "environment": "development",
+    },
+    
+    "ast_extractor": {
+        "save_ast": True,
+        "save_ast_path": "analyzer_output/ast",
+        "verbose": False,
+    },
+    
+    "queries": {
+        "general": "queries/general",
+        "controllers": "queries/controllers-extractors",
+    },
+    
+    "api_frameworks": ["NestJS", "SpringBoot", ".NET"],
+    "languages": ["typescript", "java", "c_sharp"],
+}
