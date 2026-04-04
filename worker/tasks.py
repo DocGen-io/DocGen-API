@@ -7,10 +7,11 @@ from shared.db import SessionLocal
 from shared.models import GenerationJob, JobStatus
 
 # SaaS API Imports for Configuration reading
-from src.saas_api.models.team_config import TeamConfiguration
-from src.saas_api.services.team_config_service import _deep_merge, SENSITIVE_KEYS
-from src.saas_api.core.security import decrypt_value
-from src.saas_api.core.default_config import DEFAULT_TEAM_CONFIG
+from api.models.team_config import TeamConfiguration
+from api.services.team_config_service import _deep_merge, SENSITIVE_KEYS
+from api.core.security import decrypt_value
+from api.core.default_config import DEFAULT_TEAM_CONFIG
+from src.utils.tenant_context import set_tenant
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +80,16 @@ def run_documentation_pipeline(self, job_id: str, source_type: str, path: str, c
         # Dynamically compose the runtime config file for isolation
         config_path = _get_dynamic_config_path(job_id)
         
+        # Scope Weaviate to this team's tenant shard (no-op if team_id is None)
+        tenant_token = None
+        db = SessionLocal()
+        try:
+            job = db.query(GenerationJob).filter(GenerationJob.id == job_id).first()
+            if job and job.team_id:
+                tenant_token = set_tenant(str(job.team_id))
+        finally:
+            db.close()
+
         # Import pipeline locally
         from src.pipelines.documentation_pipeline import DocumentationPipeline
 

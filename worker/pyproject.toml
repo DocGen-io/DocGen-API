@@ -11,6 +11,7 @@ dependencies = [
     # Task queue
     "celery",
     "redis",
+    "watchdog",   # auto-reload celery when source files change
 
     # Database (sync driver for Celery)
     "sqlalchemy",
@@ -19,6 +20,11 @@ dependencies = [
     # Settings
     "pydantic-settings",
     "pyyaml",
+
+    # API security deps (needed by api.core.security imported in tasks.py)
+    "python-jose[cryptography]",
+    "passlib[bcrypt]",
+    "bcrypt==4.0.1",
 
     # DocGen pipeline dependencies
     "haystack-ai",
