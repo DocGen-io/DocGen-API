@@ -7,7 +7,7 @@ import uuid
 import enum
 from sqlalchemy import Column, String, Text, Enum as SQLEnum, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB
-from src.saas_api.models.base import Base
+from api.models.base import Base
 
 
 def generate_uuid():

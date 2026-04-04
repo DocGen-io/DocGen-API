@@ -4,7 +4,7 @@ FastAPI SaaS backend for the DocGen documentation generation platform.
 
 ## Architecture
 
-- **`src/saas_api/`** — FastAPI application (routers, services, repositories, models, migrations)
+- **`src/api/`** — FastAPI application (routers, services, repositories, models, migrations)
 - **`worker/`** — Celery background worker for running documentation pipelines
 - **`shared/`** — Shared models between API and Worker (e.g., GenerationJob)
 - **`tests/`** — Test suite
@@ -17,7 +17,7 @@ docker compose up --build
 
 # Or run the API locally
 uv sync
-uv run uvicorn src.saas_api.main:app --reload --port 8000
+uv run uvicorn api.main:app --reload --port 8000
 ```
 
 ## API Endpoints

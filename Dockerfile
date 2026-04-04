@@ -19,7 +19,7 @@ COPY DocGen-API/pyproject.toml ./
 RUN uv sync --no-dev --no-install-project
 
 # Copy DocGen-API project files
-COPY DocGen-API/src/ src/
+COPY DocGen-API/api/ api/
 COPY DocGen-API/shared/ shared/
 COPY DocGen-API/alembic.ini alembic.ini
 
@@ -29,4 +29,4 @@ COPY DocGen-RAG/prompts/ prompts/
 EXPOSE 8000
 
 # Start FastAPI server
-CMD ["uv", "run", "uvicorn", "src.saas_api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
