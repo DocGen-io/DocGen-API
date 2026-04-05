@@ -15,8 +15,13 @@ from src.utils.tenant_context import set_tenant
 from src.utils.weaviate_utils import get_weaviate_store, fetch_by_node_id
 from haystack.document_stores.types import DuplicatePolicy
 from api.core.config import settings
+from worker.redis_log_handler import job_log_stream
+from worker.tracing import init_tracing
 
 logger = logging.getLogger(__name__)
+
+# Initialize Phoenix tracing (idempotent — only acts on first call)
+init_tracing()
 
 
 def _update_job_status(job_id: str, status: JobStatus, result: dict = None, error: str = None):
@@ -74,49 +79,53 @@ def _get_dynamic_config_path(job_id: str) -> str:
 def run_documentation_pipeline(self, job_id: str, source_type: str, path: str, credentials: str = None):
     """
     Execute the full DocGen documentation pipeline as a background Celery task.
+    Logs are streamed to Redis Pub/Sub channel `logs:{job_id}` in real-time.
     """
-    logger.info(f"[Job {job_id}] Starting documentation pipeline for {path}")
-    _update_job_status(job_id, JobStatus.PROCESSING)
     config_path = None
 
-    try:
-        # Dynamically compose the runtime config file for isolation
-        config_path = _get_dynamic_config_path(job_id)
-        
-        # Scope Weaviate to this team's tenant shard (no-op if team_id is None)
-        tenant_token = None
-        db = SessionLocal()
+    with job_log_stream(job_id):
+        logger.info(f"[Job {job_id}] Starting documentation pipeline for {path}")
+        _update_job_status(job_id, JobStatus.PROCESSING)
+
         try:
-            job = db.query(GenerationJob).filter(GenerationJob.id == job_id).first()
-            if job and job.team_id:
-                tenant_token = set_tenant(str(job.team_id))
+            # Dynamically compose the runtime config file for isolation
+            config_path = _get_dynamic_config_path(job_id)
+
+            # Scope Weaviate to this team's tenant shard (no-op if team_id is None)
+            tenant_token = None
+            db = SessionLocal()
+            try:
+                job = db.query(GenerationJob).filter(GenerationJob.id == job_id).first()
+                if job and job.team_id:
+                    tenant_token = set_tenant(str(job.team_id))
+            finally:
+                db.close()
+
+            # Import pipeline locally
+            from src.pipelines.documentation_pipeline import DocumentationPipeline
+
+            # Inject injected runtime config file path
+            logger.info(f"[Job {job_id}] Initializing pipeline...")
+            pipeline = DocumentationPipeline(config_path=config_path)
+            result = pipeline.run(
+                source_type=source_type,
+                path=path,
+                credentials=credentials,
+            )
+
+            _update_job_status(job_id, JobStatus.COMPLETED, result=result)
+            logger.info(f"[Job {job_id}] Pipeline completed successfully")
+            return result
+
+        except Exception as exc:
+            error_msg = str(exc)
+            logger.error(f"[Job {job_id}] Pipeline failed: {error_msg}")
+            _update_job_status(job_id, JobStatus.FAILED, error=error_msg)
+            raise self.retry(exc=exc, max_retries=0)
         finally:
-            db.close()
-
-        # Import pipeline locally
-        from src.pipelines.documentation_pipeline import DocumentationPipeline
-
-        # Inject injected runtime config file path
-        pipeline = DocumentationPipeline(config_path=config_path)
-        result = pipeline.run(
-            source_type=source_type,
-            path=path,
-            credentials=credentials,
-        )
-
-        _update_job_status(job_id, JobStatus.COMPLETED, result=result)
-        logger.info(f"[Job {job_id}] Pipeline completed successfully")
-        return result
-
-    except Exception as exc:
-        error_msg = str(exc)
-        logger.error(f"[Job {job_id}] Pipeline failed: {error_msg}")
-        _update_job_status(job_id, JobStatus.FAILED, error=error_msg)
-        raise self.retry(exc=exc, max_retries=0)
-    finally:
-        # Always clean up the temporary config file
-        if config_path and os.path.exists(config_path):
-            os.remove(config_path)
+            # Always clean up the temporary config file
+            if config_path and os.path.exists(config_path):
+                os.remove(config_path)
 
 @celery_app.task(bind=True, name="worker.tasks.update_weaviate_documentation_chunk")
 def update_weaviate_documentation_chunk(self, team_id: str, endpoint_id: str, proposed_content: str):
