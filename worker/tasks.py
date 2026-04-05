@@ -76,7 +76,7 @@ def _get_dynamic_config_path(job_id: str) -> str:
 
 
 @celery_app.task(bind=True, name="worker.tasks.run_documentation_pipeline")
-def run_documentation_pipeline(self, job_id: str, source_type: str, path: str, credentials: str = None):
+def run_documentation_pipeline(self, job_id: str, source_type: str, path: str, credentials: str = None, api_dir: str = None):
     """
     Execute the full DocGen documentation pipeline as a background Celery task.
     Logs are streamed to Redis Pub/Sub channel `logs:{job_id}` in real-time.
@@ -111,6 +111,7 @@ def run_documentation_pipeline(self, job_id: str, source_type: str, path: str, c
                 source_type=source_type,
                 path=path,
                 credentials=credentials,
+                api_dir=api_dir,
             )
 
             _update_job_status(job_id, JobStatus.COMPLETED, result=result)

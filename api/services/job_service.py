@@ -42,6 +42,7 @@ class JobService:
                 "source_type": job.source_type,
                 "path": job.path,
                 "credentials": job.credentials,
+                "api_dir": job.api_dir,
             },
         )
 

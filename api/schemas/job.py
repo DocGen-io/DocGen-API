@@ -7,6 +7,7 @@ class JobCreate(BaseModel):
     source_type: str
     path: str
     credentials: Optional[str] = None
+    api_dir: Optional[str] = None  # Subfolder to target for API extraction (microservices)
 
 
 class JobResponse(BaseModel):
@@ -15,6 +16,7 @@ class JobResponse(BaseModel):
     submitted_by: Optional[str] = None
     source_type: str
     path: str
+    api_dir: Optional[str] = None
     status: str
     result: Optional[dict] = None
     error: Optional[str] = None

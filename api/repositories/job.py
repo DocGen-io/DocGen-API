@@ -29,6 +29,7 @@ class JobRepository(BaseRepository[GenerationJob, JobCreate, JobCreate]):
             source_type=obj_in.source_type,
             path=obj_in.path,
             credentials=obj_in.credentials,
+            api_dir=obj_in.api_dir,
             status=JobStatus.PENDING,
         )
         db.add(db_obj)

@@ -31,6 +31,7 @@ class GenerationJob(Base):
     source_type = Column(String, nullable=False)  # "git" or "local"
     path = Column(String, nullable=False)
     credentials = Column(String, nullable=True)
+    api_dir = Column(String, nullable=True)  # Optional subfolder for microservice API extraction
 
     status = Column(SQLEnum(JobStatus), default=JobStatus.PENDING, nullable=False, index=True)
     result = Column(JSONB, nullable=True)
