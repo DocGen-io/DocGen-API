@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends
 from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.core.database import get_db
@@ -10,6 +11,11 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 def get_auth_service(db: AsyncSession = Depends(get_db)) -> AuthService:
     return AuthService(db)
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
 
 @router.post("/register", response_model=UserResponse)
 async def register_user(
@@ -24,8 +30,16 @@ async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(), 
     auth_service: AuthService = Depends(get_auth_service)
 ):
-    """Authenticate user and return JWT token."""
+    """Authenticate user and return JWT access + refresh tokens."""
     return await auth_service.authenticate_user(
         login_identifier=form_data.username, 
         password=form_data.password
     )
+
+@router.post("/refresh")
+async def refresh_access_token(
+    body: RefreshRequest,
+    auth_service: AuthService = Depends(get_auth_service)
+):
+    """Exchange a valid refresh token for a new access + refresh token pair."""
+    return await auth_service.refresh_access_token(body.refresh_token)

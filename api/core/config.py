@@ -8,7 +8,8 @@ class Settings(BaseSettings):
     # Auth
     SECRET_KEY: str = "CHANGE_ME_IN_PRODUCTION"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7 # 7 days
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     
     # PostgreSQL
     POSTGRES_SERVER: str = "localhost"

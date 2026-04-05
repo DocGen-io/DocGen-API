@@ -4,9 +4,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.models.user import User
 from api.schemas.user import UserCreate
-from api.core.security import verify_password, create_access_token
+from api.core.security import (
+    verify_password,
+    create_access_token,
+    create_refresh_token,
+    decode_refresh_token,
+)
 from api.core.config import settings
 from api.repositories.user import user_repo
+from api.services.team_service import TeamService
 
 class AuthService:
     """Service layer representing pure business logic decoupled from raw database queries.
@@ -34,7 +40,6 @@ class AuthService:
         user = await user_repo.create(self.db, obj_in=user_data)
 
         # Auto-provision personal team for every new user
-        from api.services.team_service import TeamService
         await TeamService(self.db).create_default_team(user.id, user.username)
 
         return user
@@ -51,9 +56,36 @@ class AuthService:
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
-        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-        access_token = create_access_token(
-            subject=user.id, expires_delta=access_token_expires
-        )
-        return {"access_token": access_token, "token_type": "bearer"}
+        return self._issue_token_pair(user.id)
 
+    async def refresh_access_token(self, refresh_token: str) -> dict[str, str]:
+        """Validate a refresh token and issue a new access + refresh token pair."""
+        try:
+            user_id = decode_refresh_token(refresh_token)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=str(exc),
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        # Verify the user still exists and is active
+        user = await user_repo.get(self.db, user_id)
+        if not user or not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found or inactive",
+            )
+
+        return self._issue_token_pair(user.id)
+
+    @staticmethod
+    def _issue_token_pair(user_id: str) -> dict[str, str]:
+        """Create a new access + refresh token pair."""
+        access_token = create_access_token(subject=user_id)
+        refresh_token = create_refresh_token(subject=user_id)
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+        }
