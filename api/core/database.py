@@ -7,7 +7,9 @@ from api.core.config import settings
 engine = create_async_engine(
     settings.async_database_uri,
     echo=False,
-    future=True
+    future=True,
+    pool_size=20,
+    max_overflow=10
 )
 
 AsyncSessionLocal = async_sessionmaker(
