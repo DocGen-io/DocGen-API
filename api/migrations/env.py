@@ -19,6 +19,8 @@ if config.config_file_name is not None:
 import asyncio
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from api.models import Base
+from api.models.team_invitation import TeamInvitation  # ensure Alembic tracks this
+from shared.models import GenerationJob  # Ensure Alembic tracks shared models
 from api.core.config import settings
 
 target_metadata = Base.metadata
