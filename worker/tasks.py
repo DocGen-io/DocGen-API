@@ -12,6 +12,9 @@ from api.services.team_config_service import _deep_merge, SENSITIVE_KEYS
 from api.core.security import decrypt_value
 from api.core.default_config import DEFAULT_TEAM_CONFIG
 from src.utils.tenant_context import set_tenant
+from src.utils.weaviate_utils import get_weaviate_store, fetch_by_node_id
+from haystack.document_stores.types import DuplicatePolicy
+from api.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -114,3 +117,32 @@ def run_documentation_pipeline(self, job_id: str, source_type: str, path: str, c
         # Always clean up the temporary config file
         if config_path and os.path.exists(config_path):
             os.remove(config_path)
+
+@celery_app.task(bind=True, name="worker.tasks.update_weaviate_documentation_chunk")
+def update_weaviate_documentation_chunk(self, team_id: str, endpoint_id: str, proposed_content: str):
+    """
+    Overwrites a specific chunk of documentation in Weaviate with the proposed PR content.
+    Isolated per team_id.
+    """
+    logger.info(f"Targeting Weaviate index to patch document node={endpoint_id} for tenant={team_id}")
+    
+    tenant_token = set_tenant(team_id)
+    try:
+       
+        with get_weaviate_store(url=settings.WEAVIATE_URL) as doc_store:
+            docs = fetch_by_node_id(doc_store, endpoint_id)
+            if not docs:
+                logger.error(f"Cannot patch document {endpoint_id}. Document not found in Weaviate for tenant {team_id}.")
+                return False
+                
+            old_doc = docs[0]
+            # Mutate content and retain all meta
+            old_doc.content = proposed_content
+            # Enforce overwrite policy by writing the mutated document with same id
+            doc_store.write_documents([old_doc], policy=DuplicatePolicy.OVERWRITE)
+            logger.info(f"Successfully patched Weaviate node={endpoint_id} for tenant={team_id}")
+            return True
+    finally:
+        from src.utils.tenant_context import tenant_context
+        tenant_context.reset(tenant_token)
+

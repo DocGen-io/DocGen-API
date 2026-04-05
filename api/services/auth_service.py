@@ -31,7 +31,13 @@ class AuthService:
             )
         
         # Pass DTO to repository to physically create the DB record
-        return await user_repo.create(self.db, obj_in=user_data)
+        user = await user_repo.create(self.db, obj_in=user_data)
+
+        # Auto-provision personal team for every new user
+        from api.services.team_service import TeamService
+        await TeamService(self.db).create_default_team(user.id, user.username)
+
+        return user
 
     async def authenticate_user(self, login_identifier: str, password: str) -> dict[str, str]:
         if "@" in login_identifier:
