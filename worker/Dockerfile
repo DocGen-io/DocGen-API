@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -23,11 +24,12 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="/usr/local/
 COPY DocGen-API/worker/pyproject.toml worker/pyproject.toml
 COPY DocGen-API/worker/uv.lock        worker/uv.lock
 
-RUN cd worker && uv sync --no-dev --no-install-project --frozen
+# BuildKit cache mount: reuses the uv download cache across rebuilds.
+# Deps are only re-downloaded if uv.lock actually changes.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    cd worker && uv sync --no-dev --no-install-project --frozen
 
 # ── Source code (invalidates cache on every .py change, but deps are cached) ─
-# These directories are volume-mounted in dev, so this layer only matters for
-# production builds or the initial image pull.
 COPY DocGen-RAG/src/        src/
 COPY DocGen-API/api/        api/
 COPY DocGen-RAG/prompts/    prompts/
@@ -41,9 +43,6 @@ RUN chown -R docgen:docgen /app
 USER docgen
 
 # ── Entrypoint ────────────────────────────────────────────────────────────────
-# watchmedo auto-restart: restarts `celery worker` whenever any .py file changes
-# in the mounted source dirs. This makes `docker compose restart` unnecessary
-# during development — just save a file and Celery reloads automatically.
 CMD ["uv", "run", "--project", "worker", \
      "watchmedo", "auto-restart", \
      "--directory=/app/src", \
