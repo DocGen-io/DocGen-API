@@ -28,6 +28,8 @@ dependencies = [
     "email-validator",
     "httpx",
     "psycopg2-binary",
+    "websockets",
+    "redis[hiredis]",
 ]
 
 [project.optional-dependencies]

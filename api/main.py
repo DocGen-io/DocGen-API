@@ -2,7 +2,10 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.api.routers import auth_router, team_config_router, prompt_router, team_router, jobs_router, revisions_router
+from api.api.routers import (
+    auth_router, team_config_router, prompt_router, team_router,
+    jobs_router, revisions_router, logs_router, traces_router,
+)
 from api.core.config import settings
 from api.core.database import engine, AsyncSessionLocal
 from api.core.init_db import seed_system_prompts
@@ -44,3 +47,7 @@ app.include_router(team_config_router, prefix=settings.API_V1_STR)
 app.include_router(prompt_router, prefix=settings.API_V1_STR)
 app.include_router(jobs_router, prefix=settings.API_V1_STR)
 app.include_router(revisions_router, prefix=settings.API_V1_STR)
+app.include_router(traces_router, prefix=settings.API_V1_STR)
+# WebSocket router — mounted at root (no /api/v1 prefix for ws://)
+app.include_router(logs_router)
+
