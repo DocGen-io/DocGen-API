@@ -25,3 +25,5 @@ uv.lock
 
 # Alembic
 *.pyc
+
+analyzer_output/

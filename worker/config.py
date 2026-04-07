@@ -5,8 +5,8 @@ from pydantic_settings import BaseSettings
 
 
 class WorkerSettings(BaseSettings):
-    REDIS_URL: str = "redis://localhost:6379/0"
-    DATABASE_URL: str = "postgresql://docgen:docgen_password@localhost:5432/docgen_saas"
+    REDIS_URL: str
+    DATABASE_URL: str
     WEAVIATE_URL: str = "http://localhost:8080"
 
     model_config = {

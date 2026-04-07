@@ -5,25 +5,24 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "DocGen-RAG SaaS"
     API_V1_STR: str = "/api/v1"
     
-    # Auth
-    SECRET_KEY: str = "CHANGE_ME_IN_PRODUCTION"
+    # Auth (Required in .env)
+    SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     
-    # PostgreSQL
-    POSTGRES_SERVER: str = "localhost"
-    POSTGRES_USER: str = "docgen"
-    POSTGRES_PASSWORD: str = "docgen_password"
-    POSTGRES_DB: str = "docgen_saas"
+    # PostgreSQL (Required in .env)
+    POSTGRES_SERVER: str
+    POSTGRES_USER: str
+    POSTGRES_PASSWORD: str
+    POSTGRES_DB: str
     POSTGRES_PORT: int = 5432
     
-    # Redis Queue
-    REDIS_URL: str = "redis://localhost:6379/0"
+    # Redis Queue (Required in .env)
+    REDIS_URL: str
 
-    # Encryption (Fernet needs 32-byte url-safe base64 key)
-    # Default generated for dev via `Fernet.generate_key()`
-    ENCRYPTION_KEY: str = "gTjRQ7I2G_Bv-b81b8k7qf3M3VzX_-AawS0bB3Z9Z0A="
+    # Encryption (Required in .env)
+    ENCRYPTION_KEY: str
 
     @property
     def sync_database_uri(self) -> str:
