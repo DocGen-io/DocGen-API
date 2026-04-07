@@ -24,3 +24,21 @@ class JobResponse(BaseModel):
     updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class LogEntry(BaseModel):
+    id: str
+    job_id: str
+    level: str
+    message: str
+    logger: Optional[str] = None
+    timestamp: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class JobStatusResponse(BaseModel):
+    job: JobResponse
+    logs: List[LogEntry] = []
+
+    model_config = ConfigDict(from_attributes=True)
