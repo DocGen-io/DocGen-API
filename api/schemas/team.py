@@ -4,6 +4,9 @@ from api.models.team import TeamRole
 from api.models.team_invitation import InvitationStatus, InvitationType
 
 
+from api.schemas.user import UserResponse
+
+
 # ── Team Schemas ──────────────────────────────────────────────────────────────
 
 class TeamCreate(BaseModel):
@@ -39,6 +42,7 @@ class MemberResponse(BaseModel):
     user_id: str
     team_id: str
     role: TeamRole
+    user: Optional[UserResponse] = None
 
     model_config = ConfigDict(from_attributes=True)
 
