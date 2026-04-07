@@ -2,6 +2,7 @@ from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import func
+from sqlalchemy.orm import selectinload
 import re
 import uuid
 
@@ -109,6 +110,16 @@ class TeamRepository(BaseRepository[Team, TeamCreate, TeamCreate]):
     async def remove_member(self, db: AsyncSession, member: TeamMember) -> None:
         await db.delete(member)
         await db.commit()
+
+    async def get_team_members(self, db: AsyncSession, team_id: str) -> List[TeamMember]:
+        """Fetch all members of a team, including joined user data."""
+        # Join with User to get full user details for the frontend
+        result = await db.execute(
+            select(TeamMember)
+            .options(selectinload(TeamMember.user))
+            .where(TeamMember.team_id == team_id)
+        )
+        return list(result.scalars().all())
 
     async def rotate_invite_token(self, db: AsyncSession, team: Team) -> Team:
         team.invite_token = str(uuid.uuid4())
