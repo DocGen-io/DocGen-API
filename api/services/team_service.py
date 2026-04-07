@@ -19,6 +19,10 @@ class TeamService:
     async def create_team(self, user_id: str, team_in: TeamCreate) -> Team:
         return await team_repo.create_team_with_member(self.db, team_in, user_id, TeamRole.ADMIN)
 
+    async def update_team(self, team_id: str, team_in: TeamUpdate) -> Team:
+        team = await self.get_team(team_id)
+        return await team_repo.update(self.db, db_obj=team, obj_in=team_in)
+
     async def create_default_team(self, user_id: str, username: str) -> Team:
         """Auto-create a personal team for each newly registered user."""
         team_in = TeamCreate(name=username, description=f"{username}'s personal team", is_public=False)
@@ -28,9 +32,15 @@ class TeamService:
         return await team_repo.get_user_teams(self.db, user_id)
 
     async def get_team(self, team_id: str) -> Team:
-        team = await team_repo.get(self.db, team_id)
+        team = await team_repo.get(self.db, id=team_id)
         if not team:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+        return team
+
+    async def get_team_by_invite_token(self, token: str) -> Team:
+        team = await team_repo.get_by_invite_token(self.db, token)
+        if not team:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid or expired invite link")
         return team
 
     async def search_teams(self, query: str) -> List[Team]:
@@ -127,3 +137,6 @@ class TeamService:
         if member.role == TeamRole.ADMIN:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot remove team admin")
         await team_repo.remove_member(self.db, member)
+
+    async def get_team_members(self, team_id: str) -> List[TeamMember]:
+        return await team_repo.get_team_members(self.db, team_id)
