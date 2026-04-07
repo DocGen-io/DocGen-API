@@ -8,6 +8,8 @@ from api.services.revision_service import RevisionService
 from api.core.database import get_db
 from api.models.team import TeamMember
 from api.api.dependencies import verify_team_membership, verify_team_maintainer
+import logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -23,6 +25,7 @@ async def propose_revision(
     service = RevisionService(db)
     return await service.propose_revision(team_id, str(current_member.user_id), proposal)
 
+
 @router.get("/{team_id}/docs/revisions", response_model=List[DocumentationRevisionResponse])
 async def list_revisions(
     team_id: str,
@@ -30,6 +33,7 @@ async def list_revisions(
     current_member: TeamMember = Depends(verify_team_membership),
     db: AsyncSession = Depends(get_db)
 ):
+    logger.info(f"Listing revisions for team {team_id} requested by user")
     service = RevisionService(db)
     return await service.list_revisions(team_id, rev_status)
 
