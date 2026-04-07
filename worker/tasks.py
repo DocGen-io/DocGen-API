@@ -16,12 +16,18 @@ from src.utils.weaviate_utils import get_weaviate_store, fetch_by_node_id
 from haystack.document_stores.types import DuplicatePolicy
 from api.core.config import settings
 from worker.redis_log_handler import job_log_stream
-from worker.tracing import init_tracing
+from worker.redis_log_handler import job_log_stream
+from shared.tracing import init_tracing, set_trace_job_id
+from shared.models import JobLog
+from src.utils.tenant_context import tenant_context
+from src.pipelines.query_pipeline import QueryPipeline
+from src.pipelines.documentation_pipeline import DocumentationPipeline
+from src.components.EndpointClusterer import EndpointClusterer
+from src.components.FetchExampleGenerator import FetchExampleGenerator
 
 logger = logging.getLogger(__name__)
 
-# Initialize Phoenix tracing (idempotent — only acts on first call)
-init_tracing()
+# Initialize Phoenix tracing in celery_app.py worker_process_init instead to avoid gRPC fork issues
 
 
 def _update_job_status(job_id: str, status: JobStatus, result: dict = None, error: str = None):
@@ -83,8 +89,9 @@ def run_documentation_pipeline(self, job_id: str, source_type: str, path: str, c
     """
     config_path = None
 
-    with job_log_stream(job_id):
+    with job_log_stream(job_id) as log_handler:
         logger.info(f"[Job {job_id}] Starting documentation pipeline for {path}")
+        set_trace_job_id(job_id)
         _update_job_status(job_id, JobStatus.PROCESSING)
 
         try:
@@ -102,7 +109,6 @@ def run_documentation_pipeline(self, job_id: str, source_type: str, path: str, c
                 db.close()
 
             # Import pipeline locally
-            from src.pipelines.documentation_pipeline import DocumentationPipeline
 
             # Inject injected runtime config file path
             logger.info(f"[Job {job_id}] Initializing pipeline...")
@@ -121,6 +127,18 @@ def run_documentation_pipeline(self, job_id: str, source_type: str, path: str, c
         except Exception as exc:
             error_msg = str(exc)
             logger.error(f"[Job {job_id}] Pipeline failed: {error_msg}")
+            
+            # Cleanup on failure (Item 6)
+            try:
+                project_name = os.path.basename(path)
+                output_dir = os.path.join("output", project_name)
+                if os.path.exists(output_dir):
+                    import shutil
+                    shutil.rmtree(output_dir)
+                    logger.info(f"[Job {job_id}] Cleaned up failed output directory: {output_dir}")
+            except Exception as e:
+                logger.error(f"[Job {job_id}] Failed to cleanup output directory: {e}")
+
             _update_job_status(job_id, JobStatus.FAILED, error=error_msg)
             raise self.retry(exc=exc, max_retries=0)
         finally:
@@ -153,6 +171,56 @@ def update_weaviate_documentation_chunk(self, team_id: str, endpoint_id: str, pr
             logger.info(f"Successfully patched Weaviate node={endpoint_id} for tenant={team_id}")
             return True
     finally:
-        from src.utils.tenant_context import tenant_context
         tenant_context.reset(tenant_token)
+
+
+@celery_app.task(bind=True, name="worker.tasks.run_semantic_search_task")
+def run_semantic_search_task(self, job_id: str, project_name: str, query: str):
+    """
+    Background task for semantic searching across endpoints.
+    """
+    set_trace_job_id(job_id)
+    _update_job_status(job_id, JobStatus.PROCESSING)
+    try:
+        pipeline = QueryPipeline()
+        results = pipeline.run(query)
+        _update_job_status(job_id, JobStatus.COMPLETED, result={"results": results})
+        return results
+    except Exception as exc:
+        _update_job_status(job_id, JobStatus.FAILED, error=str(exc))
+        raise self.retry(exc=exc, max_retries=0)
+
+
+@celery_app.task(bind=True, name="worker.tasks.run_clustering_task")
+def run_clustering_task(self, job_id: str, project_name: str, n_clusters: int = None):
+    """
+    Background task for grouping endpoints into semantic clusters.
+    """
+    set_trace_job_id(job_id)
+    _update_job_status(job_id, JobStatus.PROCESSING)
+    try:
+        clusterer = EndpointClusterer()
+        results = clusterer.run(n_clusters=n_clusters)
+        _update_job_status(job_id, JobStatus.COMPLETED, result=results)
+        return results
+    except Exception as exc:
+        _update_job_status(job_id, JobStatus.FAILED, error=str(exc))
+        raise self.retry(exc=exc, max_retries=0)
+
+
+@celery_app.task(bind=True, name="worker.tasks.generate_examples_task")
+def generate_examples_task(self, job_id: str, project_name: str, swagger_data: dict):
+    """
+    Background task for generating code examples.
+    """
+    set_trace_job_id(job_id)
+    _update_job_status(job_id, JobStatus.PROCESSING)
+    try:
+        generator = FetchExampleGenerator()
+        results = generator.run(swagger_data=swagger_data)
+        _update_job_status(job_id, JobStatus.COMPLETED, result={"examples": results})
+        return results
+    except Exception as exc:
+        _update_job_status(job_id, JobStatus.FAILED, error=str(exc))
+        raise self.retry(exc=exc, max_retries=0)
 
