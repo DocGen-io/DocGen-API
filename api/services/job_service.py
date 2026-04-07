@@ -13,6 +13,8 @@ from api.schemas.job import JobCreate
 from api.repositories.job import job_repo
 from api.core.config import settings
 
+from sqlalchemy import select
+from shared.models import JobLog
 # Lightweight Celery client — only used to dispatch tasks, NOT to run them.
 # This connects to the same Redis broker the worker listens on.
 _celery_client = Celery(
@@ -50,6 +52,9 @@ class JobService:
 
     async def get_job(self, job_id: str) -> GenerationJob | None:
         return await job_repo.get(self.db, job_id)
+
+    async def get_job_logs(self, job_id: str) -> list:
+        return await job_repo.get_job_logs(job_id)
 
     async def list_team_jobs(self, team_id: str) -> List[GenerationJob]:
         return await job_repo.get_by_team(self.db, team_id)

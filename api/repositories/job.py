@@ -5,6 +5,7 @@ from sqlalchemy.future import select
 from shared.models import GenerationJob, JobStatus
 from api.repositories.base import BaseRepository
 from api.schemas.job import JobCreate
+from shared.models import JobLog
 
 
 class JobRepository(BaseRepository[GenerationJob, JobCreate, JobCreate]):
@@ -36,6 +37,14 @@ class JobRepository(BaseRepository[GenerationJob, JobCreate, JobCreate]):
         await db.commit()
         await db.refresh(db_obj)
         return db_obj
+
+    
+    async def get_job_logs(self, job_id: str) -> list:
+      
+        stmt = select(JobLog).filter(JobLog.job_id == job_id).order_by(JobLog.timestamp.asc())
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
 
 
 job_repo = JobRepository()
