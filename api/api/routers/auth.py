@@ -7,6 +7,10 @@ from api.core.database import get_db
 from api.schemas.user import UserCreate, UserResponse
 from api.services.auth_service import AuthService
 
+from api.api.dependencies import get_current_active_user
+from api.models.user import User
+
+
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 def get_auth_service(db: AsyncSession = Depends(get_db)) -> AuthService:
@@ -43,3 +47,10 @@ async def refresh_access_token(
 ):
     """Exchange a valid refresh token for a new access + refresh token pair."""
     return await auth_service.refresh_access_token(body.refresh_token)
+
+
+
+@router.get("/me", response_model=UserResponse)
+async def get_me(current_user: User = Depends(get_current_active_user)):
+    """Return the currently authenticated user's profile."""
+    return current_user
