@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 import redis
 
 from worker.config import settings
+from shared.db import SessionLocal
+from shared.models import JobLog
 
 
 class RedisLogHandler(logging.Handler):
@@ -21,16 +23,35 @@ class RedisLogHandler(logging.Handler):
         super().__init__()
         self._channel = f"logs:{job_id}"
         self._client = redis.from_url(redis_url)
+        self.history = []
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
-            payload = json.dumps({
+            payload_dict = {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "level": record.levelname,
                 "message": self.format(record),
                 "logger": record.name,
-            })
+            }
+            self.history.append(payload_dict)
+            payload = json.dumps(payload_dict)
             self._client.publish(self._channel, payload)
+            
+            # Persist to database immediately so logs are available on refresh
+            db = SessionLocal()
+            try:
+                db.add(JobLog(
+                    job_id=self._channel.split(":")[1],
+                    level=record.levelname.lower(),
+                    message=payload_dict["message"],
+                    logger=record.name,
+                    timestamp=payload_dict["timestamp"]
+                ))
+                db.commit()
+            except Exception:
+                db.rollback()
+            finally:
+                db.close()
         except Exception:
             self.handleError(record)
 
