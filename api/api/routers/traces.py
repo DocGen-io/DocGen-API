@@ -1,63 +1,91 @@
 """
-Trace data endpoint for fetching Phoenix span summaries.
+Trace data endpoint for fetching Phoenix span summaries via GraphQL.
 
-Exposes aggregated token counts and latencies from the running
-Phoenix session, if tracing is enabled.
+Exposes aggregated token counts and latencies from the standalone
+Phoenix server, ensuring scalability across multiple worker processes.
 """
 import logging
-
+import os
+import httpx
 from fastapi import APIRouter, HTTPException
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/traces", tags=["Traces"])
 
+def get_phoenix_url():
+    """Helper to get the Phoenix server URL."""
+    # This matches the standalone phoenix service in docker-compose
+    if os.path.exists('/.dockerenv'):
+        return "http://phoenix:6006"
+    return "http://localhost:6006"
 
 @router.get("/{job_id}")
 async def get_job_traces(job_id: str):
-    """Return aggregated span data for a specific job from Phoenix.
-
-    Returns token counts, latencies, and error summaries if tracing
-    is active. Returns 503 if Phoenix is not running.
-    """
+    """Fetch trace summaries by querying the Phoenix GraphQL API."""
     try:
-        import phoenix as px
-
-        session = px.active_session()
-        if session is None:
-            raise HTTPException(
-                status_code=503,
-                detail="Tracing is not enabled. Set ENABLE_TRACING=true on the worker.",
-            )
-
-        # Fetch spans as a dataframe filtered by job_id attribute
-        spans_df = session.get_spans_dataframe()
-        if spans_df is None or spans_df.empty:
-            return {"job_id": job_id, "spans": [], "summary": {}}
-
-        # Filter spans that contain the job_id in their attributes
-        job_spans = spans_df[
-            spans_df["attributes"].apply(
-                lambda attrs: attrs.get("job_id") == job_id if isinstance(attrs, dict) else False
-            )
-        ]
-
-        if job_spans.empty:
-            return {"job_id": job_id, "spans": [], "summary": {}}
-
-        summary = {
-            "total_spans": len(job_spans),
-            "avg_latency_ms": round(job_spans["latency_ms"].mean(), 2) if "latency_ms" in job_spans.columns else None,
-            "total_tokens": int(job_spans["cumulative_token_count.total"].sum()) if "cumulative_token_count.total" in job_spans.columns else None,
+        phoenix_url = get_phoenix_url()
+        
+        # Phoenix uses GraphQL under the hood to serve its UI.
+        # We query the exact same API to get span data filtered by job_id.
+        graphql_query = {
+            "query": """
+            query GetSpansForJob($jobId: String!) {
+              spans(
+                filter: { condition: { attributes: { contains: { key: "job_id", value: $jobId } } } }
+              ) {
+                id
+                latencyMs
+                cumulativeTokenCount {
+                  total
+                }
+              }
+            }
+            """,
+            "variables": {"jobId": job_id}
         }
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(f"{phoenix_url}/graphql", json=graphql_query, timeout=5.0)
+            
+            if response.status_code != 200:
+                logger.warning(f"Phoenix API returned {response.status_code}")
+                return {"job_id": job_id, "summary": {}, "span_count": 0}
+                
+            data = response.json().get("data", {}).get("spans", [])
+            
+        if not data:
+            return {"job_id": job_id, "summary": {}, "span_count": 0}
+
+        # Calculate summaries from the raw data returned index by index
+        total_tokens = sum((span.get("cumulativeTokenCount") or {}).get("total") or 0 for span in data)
+        latencies = [span.get("latencyMs") for span in data if span.get("latencyMs") is not None]
+        avg_latency = float(sum(latencies) / len(latencies)) if latencies else 0.0
 
         return {
             "job_id": job_id,
-            "summary": summary,
-            "span_count": len(job_spans),
+            "span_count": len(data),
+            "summary": {
+                "total_spans": len(data),
+                "avg_latency_ms": round(avg_latency, 2),
+                "total_tokens": total_tokens,
+            }
         }
 
-    except ImportError:
-        raise HTTPException(
-            status_code=503,
-            detail="Phoenix is not installed. Tracing is unavailable.",
-        )
+    except httpx.RequestError as e: 
+        logger.error(f"Failed to connect to Phoenix: {e}")
+        return {"job_id": job_id, "summary": {}, "span_count": 0}
+    except Exception as e:
+        logger.error(f"Unexpected error fetching traces: {e}")
+        return {"job_id": job_id, "summary": {}, "span_count": 0}
+
+
+@router.delete("/{job_id}")
+async def delete_job_traces(job_id: str):
+    """
+    WARNING: Phoenix does not easily support deleting specific spans via API yet.
+    For now, we return a 501 Not Implemented to prevent accidental global wipes.
+    """
+    raise HTTPException(
+        status_code=501, 
+        detail="Deleting isolated traces is not currently supported by the telemetry backend."
+    )
