@@ -12,7 +12,7 @@ from api.api.dependencies import (
     verify_team_admin,
 )
 from api.schemas.team import (
-    TeamCreate, TeamResponse, MemberRoleUpdate, MemberResponse,
+    TeamCreate, TeamUpdate, TeamResponse, MemberRoleUpdate, MemberResponse,
     InvitationRespond, TeamInvitationResponse,
 )
 from api.services.team_service import TeamService
@@ -47,7 +47,7 @@ async def read_my_teams(
 
 @router.get("/search", response_model=List[TeamResponse])
 async def search_teams(
-    q: str,
+    q: Optional[str] = "",
     svc: TeamService = Depends(get_team_service),
 ):
     """Search public teams by name."""
@@ -61,6 +61,26 @@ async def get_team(
 ):
     """Get team details (public endpoint)."""
     return await svc.get_team(team_id)
+
+
+@router.get("/invite/{invite_token}", response_model=TeamResponse)
+async def get_team_by_invite_token(
+    invite_token: str,
+    svc: TeamService = Depends(get_team_service),
+):
+    """Get team details by invite token (for join page)."""
+    return await svc.get_team_by_invite_token(invite_token)
+
+
+@router.patch("/{team_id}", response_model=TeamResponse)
+async def update_team(
+    team_id: str,
+    team_in: TeamUpdate,
+    _: TeamMember = Depends(verify_team_maintainer),
+    svc: TeamService = Depends(get_team_service),
+):
+    """Update team details (Admin/Maintainer)."""
+    return await svc.update_team(team_id, team_in)
 
 
 # ── Invite-link join ──────────────────────────────────────────────────────────
@@ -133,6 +153,16 @@ async def respond_to_invitation(
 ):
     """Admin/Maintainer: approve or decline a join request/invite."""
     return await svc.respond_to_invitation(team_id, invitation_id, body.accept)
+
+
+@router.get("/{team_id}/members", response_model=List[MemberResponse])
+async def get_team_members(
+    team_id: str,
+    _: TeamMember = Depends(verify_team_membership),
+    svc: TeamService = Depends(get_team_service),
+):
+    """List all members of a team."""
+    return await svc.get_team_members(team_id)
 
 
 # ── Member management ─────────────────────────────────────────────────────────
