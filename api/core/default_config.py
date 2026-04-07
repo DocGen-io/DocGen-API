@@ -14,7 +14,7 @@ DEFAULT_TEAM_CONFIG: Dict[str, Any] = {
     },
     "WEAVIATE_URL": os.getenv("WEAVIATE_URL", "http://127.0.0.1:8080"),
     "WEAVIATE_API_KEY": None,
-    "tracing": False,
+    "tracing": True,
     "phoenix_data_dir": "~/.phoenix_data",
     
     "code_analyzer": {
