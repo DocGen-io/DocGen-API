@@ -36,3 +36,13 @@ class GenerationJob(Base):
     status = Column(SQLEnum(JobStatus), default=JobStatus.PENDING, nullable=False, index=True)
     result = Column(JSONB, nullable=True)
     error = Column(Text, nullable=True)
+
+class JobLog(Base):
+    __tablename__ = "generation_jobs_logs"
+
+    id = Column(String, primary_key=True, default=generate_uuid, index=True)
+    job_id = Column(String, ForeignKey("generation_jobs.id", ondelete="CASCADE"), nullable=False, index=True)
+    level = Column(String, nullable=False)
+    message = Column(Text, nullable=False)
+    logger = Column(String, nullable=True)
+    timestamp = Column(String, nullable=False)
