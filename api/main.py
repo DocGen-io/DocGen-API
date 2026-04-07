@@ -4,11 +4,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.api.routers import (
     auth_router, team_config_router, prompt_router, team_router,
-    jobs_router, revisions_router, logs_router, traces_router,
+    jobs_router, team_jobs_router, revisions_router, logs_router, traces_router,
+    endpoints_router,
 )
 from api.core.config import settings
 from api.core.database import engine, AsyncSessionLocal
 from api.core.init_db import seed_system_prompts
+from shared.tracing import init_tracing
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +18,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     # Startup actions
     logger.info("Starting up DocGen SaaS API...")
+    init_tracing()
     async with AsyncSessionLocal() as session:
         await seed_system_prompts(session)
     yield
@@ -46,8 +49,10 @@ app.include_router(team_router, prefix=settings.API_V1_STR)
 app.include_router(team_config_router, prefix=settings.API_V1_STR)
 app.include_router(prompt_router, prefix=settings.API_V1_STR)
 app.include_router(jobs_router, prefix=settings.API_V1_STR)
+app.include_router(team_jobs_router, prefix=settings.API_V1_STR)
 app.include_router(revisions_router, prefix=settings.API_V1_STR)
 app.include_router(traces_router, prefix=settings.API_V1_STR)
+app.include_router(endpoints_router, prefix=settings.API_V1_STR)
 # WebSocket router — mounted at root (no /api/v1 prefix for ws://)
 app.include_router(logs_router)
 
