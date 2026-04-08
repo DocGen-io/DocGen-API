@@ -39,10 +39,10 @@ class JobRepository(BaseRepository[GenerationJob, JobCreate, JobCreate]):
         return db_obj
 
     
-    async def get_job_logs(self, job_id: str) -> list:
+    async def get_job_logs(self, db: AsyncSession, job_id: str) -> list:
       
         stmt = select(JobLog).filter(JobLog.job_id == job_id).order_by(JobLog.timestamp.asc())
-        result = await self.db.execute(stmt)
+        result = await db.execute(stmt)
         return list(result.scalars().all())
 
 

@@ -11,15 +11,13 @@ from api.models.team_config import TeamConfiguration
 from api.services.team_config_service import _deep_merge, SENSITIVE_KEYS
 from api.core.security import decrypt_value
 from api.core.default_config import DEFAULT_TEAM_CONFIG
-from src.utils.tenant_context import set_tenant
 from src.utils.weaviate_utils import get_weaviate_store, fetch_by_node_id
 from haystack.document_stores.types import DuplicatePolicy
 from api.core.config import settings
 from worker.redis_log_handler import job_log_stream
 from worker.redis_log_handler import job_log_stream
-from shared.tracing import init_tracing, set_trace_job_id
+# from shared.tracing import init_tracing, set_trace_job_id
 from shared.models import JobLog
-from src.utils.tenant_context import tenant_context
 from src.pipelines.query_pipeline import QueryPipeline
 from src.pipelines.documentation_pipeline import DocumentationPipeline
 from src.components.EndpointClusterer import EndpointClusterer
@@ -91,20 +89,17 @@ def run_documentation_pipeline(self, job_id: str, source_type: str, path: str, c
 
     with job_log_stream(job_id) as log_handler:
         logger.info(f"[Job {job_id}] Starting documentation pipeline for {path}")
-        set_trace_job_id(job_id)
+        # set_trace_job_id(job_id)
         _update_job_status(job_id, JobStatus.PROCESSING)
 
         try:
             # Dynamically compose the runtime config file for isolation
             config_path = _get_dynamic_config_path(job_id)
 
-            # Scope Weaviate to this team's tenant shard (no-op if team_id is None)
-            tenant_token = None
             db = SessionLocal()
             try:
                 job = db.query(GenerationJob).filter(GenerationJob.id == job_id).first()
-                if job and job.team_id:
-                    tenant_token = set_tenant(str(job.team_id))
+                
             finally:
                 db.close()
 
@@ -112,12 +107,19 @@ def run_documentation_pipeline(self, job_id: str, source_type: str, path: str, c
 
             # Inject injected runtime config file path
             logger.info(f"[Job {job_id}] Initializing pipeline...")
-            pipeline = DocumentationPipeline(config_path=config_path)
+            pipeline = DocumentationPipeline(config_path=config_path,
+             api_details={
+                    'job_id': job_id,
+                    'team_id': job.team_id if job else None,
+                    'user_id': job.submitted_by if job else None
+                }
+            )
             result = pipeline.run(
                 source_type=source_type,
                 path=path,
                 credentials=credentials,
                 api_dir=api_dir,
+               
             )
 
             _update_job_status(job_id, JobStatus.COMPLETED, result=result)
@@ -152,15 +154,14 @@ def update_weaviate_documentation_chunk(self, team_id: str, endpoint_id: str, pr
     Overwrites a specific chunk of documentation in Weaviate with the proposed PR content.
     Isolated per team_id.
     """
-    logger.info(f"Targeting Weaviate index to patch document node={endpoint_id} for tenant={team_id}")
+    logger.info(f"Targeting Weaviate index to patch document node={endpoint_id}")
     
-    tenant_token = set_tenant(team_id)
     try:
        
         with get_weaviate_store(url=settings.WEAVIATE_URL) as doc_store:
             docs = fetch_by_node_id(doc_store, endpoint_id)
             if not docs:
-                logger.error(f"Cannot patch document {endpoint_id}. Document not found in Weaviate for tenant {team_id}.")
+                logger.warning(f"No document found in Weaviate for node={endpoint_id}")
                 return False
                 
             old_doc = docs[0]
@@ -168,10 +169,10 @@ def update_weaviate_documentation_chunk(self, team_id: str, endpoint_id: str, pr
             old_doc.content = proposed_content
             # Enforce overwrite policy by writing the mutated document with same id
             doc_store.write_documents([old_doc], policy=DuplicatePolicy.OVERWRITE)
-            logger.info(f"Successfully patched Weaviate node={endpoint_id} for tenant={team_id}")
+            logger.info(f"Successfully patched Weaviate node={endpoint_id}")
             return True
     finally:
-        tenant_context.reset(tenant_token)
+        logger.info(f"Completed attempt to patch Weaviate node={endpoint_id}")
 
 
 @celery_app.task(bind=True, name="worker.tasks.run_semantic_search_task")
@@ -179,7 +180,7 @@ def run_semantic_search_task(self, job_id: str, project_name: str, query: str):
     """
     Background task for semantic searching across endpoints.
     """
-    set_trace_job_id(job_id)
+    # set_trace_job_id(job_id)
     _update_job_status(job_id, JobStatus.PROCESSING)
     try:
         pipeline = QueryPipeline()
@@ -196,7 +197,7 @@ def run_clustering_task(self, job_id: str, project_name: str, n_clusters: int = 
     """
     Background task for grouping endpoints into semantic clusters.
     """
-    set_trace_job_id(job_id)
+    # set_trace_job_id(job_id)
     _update_job_status(job_id, JobStatus.PROCESSING)
     try:
         clusterer = EndpointClusterer()
@@ -213,7 +214,7 @@ def generate_examples_task(self, job_id: str, project_name: str, swagger_data: d
     """
     Background task for generating code examples.
     """
-    set_trace_job_id(job_id)
+    # set_trace_job_id(job_id)
     _update_job_status(job_id, JobStatus.PROCESSING)
     try:
         generator = FetchExampleGenerator()

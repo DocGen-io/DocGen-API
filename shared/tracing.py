@@ -85,9 +85,9 @@ def instrument_app() -> None:
         collector_endpoint = os.getenv("PHOENIX_COLLECTOR_ENDPOINT")
         if not collector_endpoint:
             if os.path.exists('/.dockerenv'):
-                 collector_endpoint = "http://phoenix:4318/v1/traces"
+                 collector_endpoint = "http://phoenix:6006/v1/traces"
             else:
-                 collector_endpoint = "http://localhost:4318/v1/traces"
+                 collector_endpoint = "http://localhost:6006/v1/traces"
         
         # Set up the tracer provider and exporter
         resource = Resource.create({"service.name": "docgen-rag"})
