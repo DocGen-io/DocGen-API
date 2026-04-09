@@ -11,17 +11,10 @@ from api.models.team_config import TeamConfiguration
 from api.services.team_config_service import _deep_merge, SENSITIVE_KEYS
 from api.core.security import decrypt_value
 from api.core.default_config import DEFAULT_TEAM_CONFIG
-from src.utils.weaviate_utils import get_weaviate_store, fetch_by_node_id
-from haystack.document_stores.types import DuplicatePolicy
 from api.core.config import settings
-from worker.redis_log_handler import job_log_stream
 from worker.redis_log_handler import job_log_stream
 # from shared.tracing import init_tracing, set_trace_job_id
 from shared.models import JobLog
-from src.pipelines.query_pipeline import QueryPipeline
-from src.pipelines.documentation_pipeline import DocumentationPipeline
-from src.components.EndpointClusterer import EndpointClusterer
-from src.components.FetchExampleGenerator import FetchExampleGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +100,7 @@ def run_documentation_pipeline(self, job_id: str, source_type: str, path: str, c
 
             # Inject injected runtime config file path
             logger.info(f"[Job {job_id}] Initializing pipeline...")
+            from src.pipelines.documentation_pipeline import DocumentationPipeline
             pipeline = DocumentationPipeline(config_path=config_path,
              api_details={
                     'job_id': job_id,
@@ -157,6 +151,8 @@ def update_weaviate_documentation_chunk(self, team_id: str, endpoint_id: str, pr
     logger.info(f"Targeting Weaviate index to patch document node={endpoint_id}")
     
     try:
+        from haystack.document_stores.types import DuplicatePolicy
+        from src.utils.weaviate_utils import get_weaviate_store, fetch_by_node_id
        
         with get_weaviate_store(url=settings.WEAVIATE_URL) as doc_store:
             docs = fetch_by_node_id(doc_store, endpoint_id)
@@ -183,6 +179,7 @@ def run_semantic_search_task(self, job_id: str, project_name: str, query: str):
     # set_trace_job_id(job_id)
     _update_job_status(job_id, JobStatus.PROCESSING)
     try:
+        from src.pipelines.query_pipeline import QueryPipeline
         pipeline = QueryPipeline()
         results = pipeline.run(query)
         _update_job_status(job_id, JobStatus.COMPLETED, result={"results": results})
@@ -200,6 +197,7 @@ def run_clustering_task(self, job_id: str, project_name: str, n_clusters: int = 
     # set_trace_job_id(job_id)
     _update_job_status(job_id, JobStatus.PROCESSING)
     try:
+        from src.components.EndpointClusterer import EndpointClusterer
         clusterer = EndpointClusterer()
         results = clusterer.run(n_clusters=n_clusters)
         _update_job_status(job_id, JobStatus.COMPLETED, result=results)
@@ -217,6 +215,7 @@ def generate_examples_task(self, job_id: str, project_name: str, swagger_data: d
     # set_trace_job_id(job_id)
     _update_job_status(job_id, JobStatus.PROCESSING)
     try:
+        from src.components.FetchExampleGenerator import FetchExampleGenerator
         generator = FetchExampleGenerator()
         results = generator.run(swagger_data=swagger_data)
         _update_job_status(job_id, JobStatus.COMPLETED, result={"examples": results})

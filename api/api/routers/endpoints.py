@@ -53,17 +53,15 @@ async def list_project_endpoints(
 @router.get("/{project_name}/query")
 async def query_endpoints(
     project_name: str,
+    team_id: str,
     q: str = Query(..., description="Natural language query"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    membership = Depends(verify_team_membership)
 ):
     """Trigger a background semantic search task."""
     from shared.models import GenerationJob, JobStatus
     from worker.tasks import run_semantic_search_task
-    
-    # We need a team_id. For now, we'll try to find one associated with the user or project.
-    # Simple default for now if team context is missing.
-    team_id = "default-team" 
     
     job = GenerationJob(
         team_id=team_id,
@@ -82,16 +80,17 @@ async def query_endpoints(
 @router.get("/{project_name}/clusters")
 async def get_endpoint_clusters(
     project_name: str,
+    team_id: str,
     n_clusters: Optional[int] = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    membership = Depends(verify_team_membership)
 ):
     """Trigger a background clustering task."""
     from shared.models import GenerationJob, JobStatus
     from worker.tasks import run_clustering_task
-    
     job = GenerationJob(
-        team_id="default-team",
+        team_id=team_id,
         submitted_by=current_user.id,
         source_type="clustering",
         path=project_name,
@@ -107,16 +106,17 @@ async def get_endpoint_clusters(
 @router.post("/{project_name}/examples")
 async def generate_examples(
     project_name: str,
+    team_id: str,
     swagger_data: Dict[str, Any],
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    membership = Depends(verify_team_membership)
 ):
     """Trigger a background example generation task."""
     from shared.models import GenerationJob, JobStatus
     from worker.tasks import generate_examples_task
-    
     job = GenerationJob(
-        team_id="default-team",
+        team_id=team_id,
         submitted_by=current_user.id,
         source_type="examples",
         path=project_name,
