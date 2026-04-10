@@ -11,15 +11,27 @@ logger = logging.getLogger(__name__)
 try:
     from opentelemetry import trace, baggage, context
     from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace import TracerProvider, SpanProcessor
     from opentelemetry.sdk.trace.export import BatchSpanProcessor
     from opentelemetry.sdk.resources import Resource
-    from openinference.instrumentation.haystack import HaystackInstrumentor
-    
-    TRACING_AVAILABLE = True
+    from openinference.instrumentation import dangerously_using_project
+    CORE_TRACING_AVAILABLE = True
 except ImportError as e:
-    TRACING_AVAILABLE = False
-    _import_error = str(e)
+    CORE_TRACING_AVAILABLE = False
+    _core_import_error = str(e)
+
+# Optional instrumentors
+try:
+    from openinference.instrumentation.haystack import HaystackInstrumentor
+    HAYSTACK_TRACING_AVAILABLE = True
+except ImportError:
+    HAYSTACK_TRACING_AVAILABLE = False
+
+try:
+    from openinference.instrumentation.google_genai import GoogleGenAIInstrumentor
+    GOOGLE_TRACING_AVAILABLE = True
+except ImportError:
+    GOOGLE_TRACING_AVAILABLE = False
 
 # Global state trackers
 _instrumented = False
@@ -72,72 +84,78 @@ def launch_phoenix() -> None:
 def instrument_app() -> None:
     """Instrument Haystack with OpenInference and OTLP Exporter."""
     global _instrumented
-    
     if _instrumented or not is_tracing_enabled():
         return
 
-    if not TRACING_AVAILABLE:
-        logger.warning(f"Tracing dependencies missing ({_import_error}). Skipping instrumentation.")
+    if not CORE_TRACING_AVAILABLE:
+        logger.warning(f"Core tracing dependencies missing ({_core_import_error}). Skipping instrumentation.")
         return
 
+    if not HAYSTACK_TRACING_AVAILABLE:
+        logger.warning("Haystack instrumentor missing. Pipeline traces will not be captured.")
+
     try:
-        # Point to external collector if provided, else use port 4318 (OTLP HTTP default for Phoenix)
         collector_endpoint = os.getenv("PHOENIX_COLLECTOR_ENDPOINT")
         if not collector_endpoint:
-            if os.path.exists('/.dockerenv'):
-                 collector_endpoint = "http://phoenix:6006/v1/traces"
-            else:
-                 collector_endpoint = "http://localhost:6006/v1/traces"
-        
-        # Set up the tracer provider and exporter
+            # Phoenix logs confirm port 6006 is used for HTTP traces in this version
+            collector_endpoint = "http://phoenix:6006/v1/traces" if os.path.exists('/.dockerenv') else "http://localhost:6006/v1/traces"
+
         resource = Resource.create({"service.name": "docgen-rag"})
         tracer_provider = TracerProvider(resource=resource)
         
-        # OTLP/HTTP Exporter pointing to Phoenix
         otlp_exporter = OTLPSpanExporter(endpoint=collector_endpoint)
         span_processor = BatchSpanProcessor(otlp_exporter)
         tracer_provider.add_span_processor(span_processor)
         
-        # Initialize the global tracer provider
         trace.set_tracer_provider(tracer_provider)
         
-        # Instrument Haystack
-        HaystackInstrumentor().instrument(skip_dep_check=True)
+        if HAYSTACK_TRACING_AVAILABLE:
+            HaystackInstrumentor().instrument(skip_dep_check=True)
+            logger.info("Haystack instrumented.")
+            
+        if GOOGLE_TRACING_AVAILABLE:
+            try:
+                GoogleGenAIInstrumentor().instrument(skip_dep_check=True)
+                logger.info("Google GenAI instrumented.")
+            except Exception:
+                logger.warning("Google GenAI instrumentor failed. Token capture might be limited for Gemini.")
+        else:
+            logger.warning("Google GenAI instrumentor missing. Token usage will not be captured.")
         _instrumented = True
-        
         logger.info(f"Haystack instrumented with OTLP. Exporter: {collector_endpoint}")
     except Exception as exc:
         logger.error(f"Failed to instrument Haystack: {exc}")
 
 
 @contextmanager
-def trace_job_context(job_id: str) -> Iterator[None]:
+def trace_job_context(job_id: str, project_name: str = "default") -> Iterator[None]:
     """
-    Context manager to attach a job_id to all spans created within its scope.
-    
-    Usage:
-        with trace_job_context(job.id):
-            run_haystack_pipeline()
+    Context manager to attach a job_id and project_name to all spans created within its scope as Span Attributes.
     """
-    if not TRACING_AVAILABLE or not is_tracing_enabled():
-        yield  # Just run the code without tracing if not configured
+    if not CORE_TRACING_AVAILABLE or not is_tracing_enabled():
+        yield
         return
 
-    # 1. Create a new context with the job_id in the baggage
+    # Standard approach: store in context baggage
     new_context = baggage.set_baggage("job_id", job_id)
+    if project_name:
+        new_context = baggage.set_baggage("project_name", project_name)
     
-    # 2. Attach the context to the current thread
     token = context.attach(new_context)
     
-    # 3. Also attach to the active span if one already exists
+    # Also attach directly to the current span if already started
     current_span = trace.get_current_span()
     if current_span and current_span.is_recording():
         current_span.set_attribute("job_id", job_id)
+        if project_name:
+            current_span.set_attribute("project_name", project_name)
 
     try:
-        # Yield control back to the application to run the pipeline
-        yield
+        if project_name:
+            # Use dangerously_using_project as it's the most effective for Arize Phoenix
+            with dangerously_using_project(project_name):
+                yield
+        else:
+            yield
     finally:
-        # 4. CRITICAL: Detach the context when the job is done to prevent memory leaks
-        # and prevent spans from a future job inheriting this job_id.
         context.detach(token)
