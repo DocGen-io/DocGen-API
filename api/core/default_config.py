@@ -16,6 +16,7 @@ DEFAULT_TEAM_CONFIG: Dict[str, Any] = {
     "WEAVIATE_API_KEY": None,
     "tracing": True,
     "phoenix_data_dir": "~/.phoenix_data",
+    "PHOENIX_HOST": os.getenv("PHOENIX_HOST", "http://localhost:6006"),
     
     "code_analyzer": {
         "active_generator": "gemini",
