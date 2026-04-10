@@ -6,6 +6,7 @@ from datetime import datetime
 class JobCreate(BaseModel):
     source_type: str
     path: str
+    project_name: Optional[str] = None
     credentials: Optional[str] = None
     api_dir: Optional[str] = None  # Subfolder to target for API extraction (microservices)
 
@@ -16,6 +17,7 @@ class JobResponse(BaseModel):
     submitted_by: Optional[str] = None
     source_type: str
     path: str
+    project_name: Optional[str] = None
     api_dir: Optional[str] = None
     status: str
     result: Optional[dict] = None
