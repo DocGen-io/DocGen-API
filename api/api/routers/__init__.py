@@ -6,10 +6,9 @@ from api.api.routers.team import router as team_router
 from api.api.routers.jobs import router as jobs_router, team_router as team_jobs_router
 from api.api.routers.revisions import router as revisions_router
 from api.api.routers.logs import router as logs_router
-from api.api.routers.traces import router as traces_router
 from api.api.routers.endpoints import router as endpoints_router
 
 __all__ = [
     "auth_router", "team_config_router", "prompt_router", "team_router",
-    "jobs_router", "team_jobs_router", "revisions_router", "logs_router", "traces_router", "endpoints_router",
+    "jobs_router", "team_jobs_router", "revisions_router", "logs_router", "endpoints_router",
 ]
