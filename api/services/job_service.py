@@ -30,11 +30,21 @@ class JobService:
 
     async def submit_job(self, team_id: str, submitted_by: str, job_in: JobCreate) -> GenerationJob:
         """Create a job record in PostgreSQL and dispatch it to the Celery worker."""
-        # Ensure Project record exists in the database
-       
-        
+
         # Determine project name once and persist it in the job
-        project_name = job_in.project_name or  "default"
+        # Determine project name robustly
+        project_name = job_in.project_name
+        if not project_name:
+            if job_in.path:
+                # Get the last non-empty part of the path
+                path_parts = [p for p in job_in.path.split("/") if p]
+                project_name = path_parts[-1] if path_parts else "default"
+                # Remove .git suffix if present
+                if project_name.endswith(".git"):
+                    project_name = project_name[:-4]
+            else:
+                project_name = "default"
+        
         job_in.project_name = project_name
 
         job = await job_repo.create_job(

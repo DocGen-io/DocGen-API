@@ -30,6 +30,7 @@ class GenerationJob(Base):
 
     source_type = Column(String, nullable=False)  # "git" or "local"
     path = Column(String, nullable=False)
+    project_name = Column(String, nullable=True)
     credentials = Column(String, nullable=True)
     api_dir = Column(String, nullable=True)  # Optional subfolder for microservice API extraction
 
