@@ -7,19 +7,26 @@ import json
 from api.core.database import get_db
 from api.api.dependencies import get_current_active_user, verify_team_membership
 from api.models.user import User
+from shared.models import GenerationJob, JobStatus
+from sqlalchemy.future import select
+from api.models.project import Project
 
 router = APIRouter(prefix="/endpoints", tags=["Endpoints"])
 
 @router.get("/", response_model=Dict[str, List[str]])
 async def list_available_projects(
-    output_dir: str = "output"
+    team_id: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
-    """List all project directories that have generated documentation."""
-    if not os.path.exists(output_dir):
+    """List all projects for a team from the database."""
+    if not team_id:
         return {"projects": []}
     
-    # Filter for directories only
-    projects = [d for d in os.listdir(output_dir) if os.path.isdir(os.path.join(output_dir, d))]
+    stmt = select(Project.name).where(Project.team_id == team_id).distinct()
+    result = await db.execute(stmt)
+    projects = result.scalars().all()
+    
     return {"projects": projects}
 
 def _find_project_dir(project_name: str, output_dir: str = "output") -> Optional[str]:
@@ -60,7 +67,6 @@ async def query_endpoints(
     membership = Depends(verify_team_membership)
 ):
     """Trigger a background semantic search task."""
-    from shared.models import GenerationJob, JobStatus
     from worker.tasks import run_semantic_search_task
     
     job = GenerationJob(
@@ -87,7 +93,6 @@ async def get_endpoint_clusters(
     membership = Depends(verify_team_membership)
 ):
     """Trigger a background clustering task."""
-    from shared.models import GenerationJob, JobStatus
     from worker.tasks import run_clustering_task
     job = GenerationJob(
         team_id=team_id,
@@ -113,7 +118,6 @@ async def generate_examples(
     membership = Depends(verify_team_membership)
 ):
     """Trigger a background example generation task."""
-    from shared.models import GenerationJob, JobStatus
     from worker.tasks import generate_examples_task
     job = GenerationJob(
         team_id=team_id,
