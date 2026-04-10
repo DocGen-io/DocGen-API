@@ -13,6 +13,9 @@ _celery_client = Celery(
     broker=settings.REDIS_URL,
 )
 
+import logging
+logger = logging.getLogger(__name__)
+
 class RevisionService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -31,8 +34,10 @@ class RevisionService:
         return await revision_repo.get_by_team(self.db, team_id, filter_status)
 
     async def approve_revision(self, team_id: str, revision_id: str) -> DocumentationRevision:
+        logger.info(f"Approving revision {revision_id} for team {team_id}")
         revision = await revision_repo.get_by_id_and_team(self.db, revision_id, team_id)
         if not revision:
+            logger.warning(f"Revision {revision_id} not found in team {team_id}")
             raise ValueError("Revision not found or does not belong to team.")
         if revision.status != RevisionStatus.PENDING:
             raise ValueError("Only PENDING revisions can be approved.")
@@ -51,8 +56,10 @@ class RevisionService:
         return revision
 
     async def reject_revision(self, team_id: str, revision_id: str) -> DocumentationRevision:
+        logger.info(f"Rejecting revision {revision_id} for team {team_id}")
         revision = await revision_repo.get_by_id_and_team(self.db, revision_id, team_id)
         if not revision:
+            logger.warning(f"Revision {revision_id} not found in team {team_id}")
             raise ValueError("Revision not found or does not belong to team.")
         if revision.status != RevisionStatus.PENDING:
             raise ValueError("Only PENDING revisions can be rejected.")

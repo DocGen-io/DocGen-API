@@ -16,10 +16,10 @@ class DocumentationRevisionUpdate(BaseModel):
     status: RevisionStatus
 
 class DocumentationRevisionResponse(DocumentationRevisionBase):
-    id: UUID
-    team_id: UUID
+    id: str  # Hex string from model
+    team_id: str
     status: RevisionStatus
-    submitted_by: Optional[UUID] = None
+    submitted_by: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
