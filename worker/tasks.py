@@ -1,4 +1,5 @@
 import logging
+from sqlalchemy import select
 import tempfile
 import os
 import yaml
@@ -7,13 +8,21 @@ from shared.db import SessionLocal
 from shared.models import GenerationJob, JobStatus
 
 # SaaS API Imports for Configuration reading
-from api.models.team_config import TeamConfiguration
+from api.models.team import Team
+try:
+    from api.models.team_config import TeamConfiguration
+except ImportError:
+    TeamConfiguration = None
 from api.services.team_config_service import _deep_merge, SENSITIVE_KEYS
 from api.core.security import decrypt_value
 from api.core.default_config import DEFAULT_TEAM_CONFIG
 from api.core.config import settings
 from worker.redis_log_handler import job_log_stream
-# from shared.tracing import init_tracing, set_trace_job_id
+from shared.tracing import trace_job_context
+try:
+    PHOENIX_AVAILABLE = True
+except ImportError:
+    PHOENIX_AVAILABLE = False
 from shared.models import JobLog
 
 logger = logging.getLogger(__name__)
@@ -73,7 +82,7 @@ def _get_dynamic_config_path(job_id: str) -> str:
 
 
 @celery_app.task(bind=True, name="worker.tasks.run_documentation_pipeline")
-def run_documentation_pipeline(self, job_id: str, source_type: str, path: str, credentials: str = None, api_dir: str = None):
+def run_documentation_pipeline(self, job_id: str, source_type: str, path: str, project_name: str = None, credentials: str = None, api_dir: str = None):
     """
     Execute the full DocGen documentation pipeline as a background Celery task.
     Logs are streamed to Redis Pub/Sub channel `logs:{job_id}` in real-time.
@@ -82,7 +91,6 @@ def run_documentation_pipeline(self, job_id: str, source_type: str, path: str, c
 
     with job_log_stream(job_id) as log_handler:
         logger.info(f"[Job {job_id}] Starting documentation pipeline for {path}")
-        # set_trace_job_id(job_id)
         _update_job_status(job_id, JobStatus.PROCESSING)
 
         try:
@@ -92,11 +100,13 @@ def run_documentation_pipeline(self, job_id: str, source_type: str, path: str, c
             db = SessionLocal()
             try:
                 job = db.query(GenerationJob).filter(GenerationJob.id == job_id).first()
-                
             finally:
                 db.close()
 
             # Import pipeline locally
+
+            # Wrap pipeline execution in tracing context
+            final_project_name = project_name or os.path.basename(os.path.normpath(path))
 
             # Inject injected runtime config file path
             logger.info(f"[Job {job_id}] Initializing pipeline...")
@@ -105,16 +115,18 @@ def run_documentation_pipeline(self, job_id: str, source_type: str, path: str, c
              api_details={
                     'job_id': job_id,
                     'team_id': job.team_id if job else None,
-                    'user_id': job.submitted_by if job else None
+                    'user_id': job.submitted_by if job else None,
+                    'project_name': final_project_name
                 }
             )
-            result = pipeline.run(
-                source_type=source_type,
-                path=path,
-                credentials=credentials,
-                api_dir=api_dir,
-               
-            )
+
+            with trace_job_context(job_id, project_name=final_project_name):
+                result = pipeline.run(
+                    source_type=source_type,
+                    path=path,
+                    credentials=credentials,
+                    api_dir=api_dir,
+                )
 
             _update_job_status(job_id, JobStatus.COMPLETED, result=result)
             logger.info(f"[Job {job_id}] Pipeline completed successfully")
@@ -130,8 +142,8 @@ def run_documentation_pipeline(self, job_id: str, source_type: str, path: str, c
                 output_dir = os.path.join("output", project_name)
                 if os.path.exists(output_dir):
                     import shutil
-                    shutil.rmtree(output_dir)
-                    logger.info(f"[Job {job_id}] Cleaned up failed output directory: {output_dir}")
+                    shutil.rmtree(output_dir, ignore_errors=True)
+                    logger.info(f"[Job {job_id}] Cleaned up failed output directory (if possible): {output_dir}")
             except Exception as e:
                 logger.error(f"[Job {job_id}] Failed to cleanup output directory: {e}")
 
