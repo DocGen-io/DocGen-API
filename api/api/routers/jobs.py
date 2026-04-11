@@ -12,6 +12,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
 
+
+def get_job_service(db: AsyncSession = Depends(get_db)) -> JobService:
+    return JobService(db)
+
 @router.get("/{job_id}/status", response_model=JobStatusResponse)
 async def get_universal_job_status(
     job_id: str,
@@ -28,8 +32,6 @@ async def get_universal_job_status(
 team_router = APIRouter(prefix="/teams/{team_id}/jobs", tags=["Jobs"])
 
 
-def get_job_service(db: AsyncSession = Depends(get_db)) -> JobService:
-    return JobService(db)
 
 
 @team_router.post("/generate", response_model=JobResponse)
