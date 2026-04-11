@@ -12,6 +12,7 @@ DEFAULT_TEAM_CONFIG: Dict[str, Any] = {
         "top_k_reranker": 2,
         "chunk_size": 500,
     },
+    "process_grouping_automatically": False,
     "WEAVIATE_URL": os.getenv("WEAVIATE_URL", "http://127.0.0.1:8080"),
     "WEAVIATE_API_KEY": None,
     "tracing": True,
