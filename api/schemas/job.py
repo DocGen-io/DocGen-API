@@ -44,3 +44,8 @@ class JobStatusResponse(BaseModel):
     logs: List[LogEntry] = []
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ExampleGenerationRequest(BaseModel):
+    path: str
+    method: str
