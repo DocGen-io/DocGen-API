@@ -10,8 +10,18 @@ from api.models.user import User
 from shared.models import GenerationJob, JobStatus
 from sqlalchemy.future import select
 from api.models.project import Project
+from api.services.job_service import JobService
+from api.schemas.job import JobCreate, JobResponse
+import logging
+from api.services.job_service import JobService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/endpoints", tags=["Endpoints"])
+
+
+def get_job_service(db: AsyncSession = Depends(get_db)) -> JobService:
+    return JobService(db)
 
 @router.get("/", response_model=Dict[str, List[str]])
 async def list_available_projects(
@@ -29,106 +39,93 @@ async def list_available_projects(
     
     return {"projects": projects}
 
-def _find_project_dir(project_name: str, output_dir: str = "output") -> Optional[str]:
-    """Find a project directory case-insensitively."""
-    if not os.path.exists(output_dir):
-        return None
-    for d in os.listdir(output_dir):
-        if d.lower() == project_name.lower() and os.path.isdir(os.path.join(output_dir, d)):
-            return d
-    return None
-
-@router.get("/{project_name}")
+@router.get("/{project_name}", response_model=JobResponse)
 async def list_project_endpoints(
     project_name: str,
-    output_dir: str = "output"
+    team_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+    membership = Depends(verify_team_membership),
+    job_service: JobService = Depends(get_job_service)
 ):
-    """List all generated endpoints for a project by scanning the output directory."""
-    name = _find_project_dir(project_name, output_dir)
-    if not name:
-        return {"project": project_name, "endpoints": {}}
+    """List all generated endpoints for a project by querying Weaviate via Worker."""
+    return await job_service.submit_task(
+        team_id=team_id,
+        submitted_by=current_user.id,
+        task_name="worker.tasks.list_endpoints_task",
+        task_kwargs={"project_name": project_name, "team_id": team_id},
+        source_type="list_endpoints",
+        path=project_name,
+        project_name=project_name
+    )
 
-    project_path = os.path.join(output_dir, name)
-    swagger_path = os.path.join(project_path, "swagger.json")
-    if os.path.exists(swagger_path):
-        with open(swagger_path, "r") as f:
-            spec = json.load(f)
-            return {"project": name, "endpoints": spec.get("paths", {})}
-            
-    return {"project": name, "endpoints": {}}
-
-@router.get("/{project_name}/query")
+@router.get("/{project_name}/query", response_model=JobResponse)
 async def query_endpoints(
     project_name: str,
     team_id: str,
     q: str = Query(..., description="Natural language query"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
-    membership = Depends(verify_team_membership)
+    membership = Depends(verify_team_membership),
+    job_service: JobService = Depends(get_job_service)
 ):
     """Trigger a background semantic search task."""
-    from worker.tasks import run_semantic_search_task
-    
-    job = GenerationJob(
+    return await job_service.submit_task(
         team_id=team_id,
         submitted_by=current_user.id,
+        task_name="worker.tasks.run_semantic_search_task",
+        task_kwargs={"project_name": project_name, "query": q},
         source_type="query",
         path=project_name,
-        status=JobStatus.PENDING
+        project_name=project_name
     )
-    db.add(job)
-    await db.commit()
-    await db.refresh(job)
-    
-    run_semantic_search_task.delay(job.id, project_name, q)
-    return {"job_id": job.id, "status": "queued"}
 
-@router.get("/{project_name}/clusters")
+@router.get("/{project_name}/clusters", response_model=JobResponse)
 async def get_endpoint_clusters(
     project_name: str,
     team_id: str,
     n_clusters: Optional[int] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
-    membership = Depends(verify_team_membership)
+    membership = Depends(verify_team_membership),
+    job_service: JobService = Depends(get_job_service)
 ):
     """Trigger a background clustering task."""
-    from worker.tasks import run_clustering_task
-    job = GenerationJob(
+    return await job_service.submit_task(
         team_id=team_id,
         submitted_by=current_user.id,
+        task_name="worker.tasks.run_clustering_task",
+        task_kwargs={"project_name": project_name, "n_clusters": n_clusters},
         source_type="clustering",
         path=project_name,
-        status=JobStatus.PENDING
+        project_name=project_name
     )
-    db.add(job)
-    await db.commit()
-    await db.refresh(job)
-    
-    run_clustering_task.delay(job.id, project_name, n_clusters)
-    return {"job_id": job.id, "status": "queued"}
 
-@router.post("/{project_name}/examples")
+from api.schemas.job import JobResponse, JobCreate, ExampleGenerationRequest
+
+
+@router.post("/{project_name}/examples", response_model=JobResponse)
 async def generate_examples(
     project_name: str,
     team_id: str,
-    swagger_data: Dict[str, Any],
+    request: ExampleGenerationRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
-    membership = Depends(verify_team_membership)
+    membership = Depends(verify_team_membership),
+    job_service: JobService = Depends(get_job_service)
 ):
-    """Trigger a background example generation task."""
-    from worker.tasks import generate_examples_task
-    job = GenerationJob(
+    """Trigger a background example generation task using Weaviate documentation."""
+    return await job_service.submit_task(
         team_id=team_id,
         submitted_by=current_user.id,
+        task_name="worker.tasks.generate_examples_task",
+        task_kwargs={
+            "project_name": project_name,
+            "team_id": team_id,
+            "path": request.path,
+            "method": request.method
+        },
         source_type="examples",
         path=project_name,
-        status=JobStatus.PENDING
+        project_name=project_name
     )
-    db.add(job)
-    await db.commit()
-    await db.refresh(job)
-    
-    generate_examples_task.delay(job.id, project_name, swagger_data)
-    return {"job_id": job.id, "status": "queued"}
