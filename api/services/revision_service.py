@@ -8,10 +8,7 @@ from api.schemas.revision import DocumentationRevisionCreate
 from api.repositories.revision import revision_repo
 from api.core.config import settings
 
-_celery_client = Celery(
-    "docgen_dispatcher",
-    broker=settings.REDIS_URL,
-)
+from api.core.celery_client import celery_client
 
 import logging
 logger = logging.getLogger(__name__)
@@ -45,7 +42,7 @@ class RevisionService:
         revision = await revision_repo.update(self.db, db_obj=revision, obj_in={"status": RevisionStatus.APPROVED})
         
         # Dispatch Celery worker task to patch Weaviate
-        _celery_client.send_task(
+        celery_client.send_task(
             "worker.tasks.update_weaviate_documentation_chunk",
             kwargs={
                 "team_id": str(revision.team_id),
