@@ -1,6 +1,7 @@
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 import os
 import json
 
@@ -8,12 +9,11 @@ from api.core.database import get_db
 from api.api.dependencies import get_current_active_user, verify_team_membership
 from api.models.user import User
 from shared.models import GenerationJob, JobStatus
-from sqlalchemy.future import select
 from api.models.project import Project
+from api.models.grouping import ProjectGrouping
 from api.services.job_service import JobService
-from api.schemas.job import JobCreate, JobResponse
-import logging
-from api.services.job_service import JobService
+from api.schemas.job import JobResponse, ExampleGenerationRequest
+import logging  
 
 logger = logging.getLogger(__name__)
 
@@ -76,9 +76,37 @@ async def query_endpoints(
         task_name="worker.tasks.run_semantic_search_task",
         task_kwargs={"project_name": project_name, "query": q},
         source_type="query",
-        path=project_name,
         project_name=project_name
     )
+
+@router.get("/{project_name}/grouping", response_model=Dict[str, Any])
+async def get_persisted_grouping(
+    project_name: str,
+    team_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    membership = Depends(verify_team_membership)
+):
+    """Fetch the persisted semantic grouping for a project."""
+    # First get the project id
+    proj_stmt = select(Project).where(
+        Project.name == project_name,
+        Project.team_id == team_id
+    )
+    proj_result = await db.execute(proj_stmt)
+    project = proj_result.scalar_one_or_none()
+    
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+        
+    group_stmt = select(ProjectGrouping).where(ProjectGrouping.project_id == project.id)
+    group_result = await db.execute(group_stmt)
+    grouping = group_result.scalar_one_or_none()
+    
+    if not grouping:
+        return {"clusters": None}
+        
+    return {"clusters": grouping.clusters}
 
 @router.get("/{project_name}/clusters", response_model=JobResponse)
 async def get_endpoint_clusters(
@@ -101,7 +129,6 @@ async def get_endpoint_clusters(
         project_name=project_name
     )
 
-from api.schemas.job import JobResponse, JobCreate, ExampleGenerationRequest
 
 
 @router.post("/{project_name}/examples", response_model=JobResponse)
