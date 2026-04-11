@@ -220,19 +220,45 @@ def run_clustering_task(self, job_id: str, project_name: str, n_clusters: int = 
 
 
 @celery_app.task(bind=True, name="worker.tasks.generate_examples_task")
-def generate_examples_task(self, job_id: str, project_name: str, swagger_data: dict):
+def generate_examples_task(self, job_id: str, project_name: str, team_id: str, path: str, method: str):
     """
-    Background task for generating code examples.
+    Background task for generating code examples using Weaviate documentation.
     """
     # set_trace_job_id(job_id)
     _update_job_status(job_id, JobStatus.PROCESSING)
     try:
         from src.components.FetchExampleGenerator import FetchExampleGenerator
-        generator = FetchExampleGenerator()
-        results = generator.run(swagger_data=swagger_data)
-        _update_job_status(job_id, JobStatus.COMPLETED, result={"examples": results})
+        from api.core.config import settings
+        
+        generator = FetchExampleGenerator(weaviate_url=settings.WEAVIATE_URL)
+        results = generator.run(
+            team_id=team_id,
+            project_name=project_name,
+            path=path,
+            method=method
+        )
+        _update_job_status(job_id, JobStatus.COMPLETED, result=results)
         return results
     except Exception as exc:
         _update_job_status(job_id, JobStatus.FAILED, error=str(exc))
         raise self.retry(exc=exc, max_retries=0)
 
+@celery_app.task(bind=True, name="worker.tasks.list_endpoints_task")
+def list_endpoints_task(self, job_id: str, project_name: str, team_id: str):
+    """
+    Background task to fetch all endpoints for a project from Weaviate
+    using the RAG Service Layer.
+    """
+    _update_job_status(job_id, JobStatus.PROCESSING)
+    try:
+        from src.serviceLayer.endpoint_service import EndpointService
+        
+        service = EndpointService(weaviate_url=settings.WEAVIATE_URL)
+        endpoints = service.fetch_project_endpoints(project_name=project_name, team_id=team_id)
+        
+        _update_job_status(job_id, JobStatus.COMPLETED, result={"endpoints": endpoints})
+        return endpoints
+    except Exception as exc:
+        logger.error(f"[Job {job_id}] list_endpoints_task failed: {exc}")
+        _update_job_status(job_id, JobStatus.FAILED, error=str(exc))
+        raise self.retry(exc=exc, max_retries=0)
