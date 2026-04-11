@@ -6,6 +6,7 @@ from api.models.project import Project
 from api.models.team_config import TeamConfiguration
 from api.models.prompt import PromptTemplate
 from api.models.revision import DocumentationRevision, RevisionStatus
+from api.models.grouping import ProjectGrouping
 
 # Lazy import to avoid circular dependency:
 # shared.models → api.models.base → this __init__ → shared.models
@@ -27,4 +28,5 @@ __all__ = [
     "Project", "TeamConfiguration", "PromptTemplate",
     "GenerationJob", "JobStatus",
     "DocumentationRevision", "RevisionStatus",
+    "ProjectGrouping",
 ]
