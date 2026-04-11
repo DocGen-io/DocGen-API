@@ -76,6 +76,7 @@ async def query_endpoints(
         task_name="worker.tasks.run_semantic_search_task",
         task_kwargs={"project_name": project_name, "query": q},
         source_type="query",
+        path=project_name,
         project_name=project_name
     )
 
