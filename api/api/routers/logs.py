@@ -46,7 +46,8 @@ async def stream_job_logs(websocket: WebSocket, job_id: str, token: str = Query(
     # ── Authenticate ──────────────────────────────────────────────────
     try:
         _authenticate_token(token)
-    except ValueError:
+    except ValueError as exc:
+        logger.error(f"WebSocket auth failed for token: {exc}")
         await websocket.close(code=4001, reason="Authentication failed")
         return
 

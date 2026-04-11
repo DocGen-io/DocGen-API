@@ -164,17 +164,14 @@ def run_clustering_task(self, job_id: str, project_name: str, n_clusters: int = 
     try:
         from src.components.EndpointClusterer import EndpointClusterer
         
-        db = SessionLocal()
-        try:
-            job = db.query(GenerationJob).filter(GenerationJob.id == job_id).first()
-            team_id = job.team_id if job else None
-        finally:
-            db.close()
+        job_details = get_job_basic_details(job_id)
+        team_id = job_details.get("team_id") if job_details else None
 
         clusterer = EndpointClusterer()
         results = clusterer.run(
             n_clusters=n_clusters,
-            api_details={'project_name': project_name, 'team_id': team_id} if team_id else None
+            api_details={'project_name': project_name, 'team_id': team_id} if team_id else None,
+            force=True
         )
         
         update_job_status(job_id, JobStatus.COMPLETED, result=results)
