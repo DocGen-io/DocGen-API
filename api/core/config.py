@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     # Redis Queue (Required in .env)
     REDIS_URL: str
 
+    # Weaviate (Required in .env)
+    WEAVIATE_URL: str = "http://localhost:8080"
+
     # Encryption (Required in .env)
     ENCRYPTION_KEY: str
 
