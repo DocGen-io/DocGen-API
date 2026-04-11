@@ -15,10 +15,9 @@ router = APIRouter(prefix="/jobs", tags=["Jobs"])
 @router.get("/{job_id}/status", response_model=JobStatusResponse)
 async def get_universal_job_status(
     job_id: str,
-    db: AsyncSession = Depends(get_db)
+    job_service: JobService = Depends(get_job_service)
 ):
     """Poll the status of any generation job by its ID."""
-    job_service = JobService(db)
     job = await job_service.get_job(job_id)
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")

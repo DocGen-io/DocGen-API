@@ -13,17 +13,21 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+
+def get_revision_service(db: AsyncSession = Depends(get_db)) -> RevisionService:
+    return RevisionService(db)
+
 @router.post("/{team_id}/docs/propose", response_model=DocumentationRevisionResponse, status_code=status.HTTP_201_CREATED)
 async def propose_revision(
     team_id: str,
     proposal: DocumentationRevisionCreate,
     current_member: TeamMember = Depends(verify_team_membership),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    revision_service: RevisionService = Depends(get_revision_service)
 ):
     # Security: verify_team_membership validates team_id == current_user.teams association
         
-    service = RevisionService(db)
-    return await service.propose_revision(team_id, str(current_member.user_id), proposal)
+    return await revision_service.propose_revision(team_id, str(current_member.user_id), proposal)
 
 
 @router.get("/{team_id}/docs/revisions", response_model=List[DocumentationRevisionResponse])
@@ -31,22 +35,22 @@ async def list_revisions(
     team_id: str,
     rev_status: Optional[str] = None,
     current_member: TeamMember = Depends(verify_team_membership),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    revision_service: RevisionService = Depends(get_revision_service)
 ):
     logger.info(f"Listing revisions for team {team_id} requested by user")
-    service = RevisionService(db)
-    return await service.list_revisions(team_id, rev_status)
+    return await revision_service.list_revisions(team_id, rev_status)
 
 @router.post("/{team_id}/docs/approve/{revision_id}", response_model=DocumentationRevisionResponse)
 async def approve_revision(
     team_id: str,
     revision_id: str,
     _: TeamMember = Depends(verify_team_maintainer),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    revision_service: RevisionService = Depends(get_revision_service)
 ):
-    service = RevisionService(db)
     try:
-        return await service.approve_revision(team_id, revision_id)
+        return await revision_service.approve_revision(team_id, revision_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -55,10 +59,10 @@ async def reject_revision(
     team_id: str,
     revision_id: str,
     _: TeamMember = Depends(verify_team_maintainer),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    revision_service: RevisionService = Depends(get_revision_service)
 ):
-    service = RevisionService(db)
     try:
-        return await service.reject_revision(team_id, revision_id)
+        return await revision_service.reject_revision(team_id, revision_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
