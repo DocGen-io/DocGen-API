@@ -4,9 +4,8 @@ Job Service — creates persistent job records and dispatches Celery tasks.
 The SaaS API never imports the DocumentationPipeline directly.
 It only sends a message to Redis via celery_app.send_task().
 """
-from typing import List
+from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from celery import Celery
 
 from shared.models import GenerationJob
 from api.schemas.job import JobCreate
@@ -16,12 +15,7 @@ import os
 from api.models.project import Project
 from sqlalchemy import select
 from shared.models import JobLog
-# Lightweight Celery client — only used to dispatch tasks, NOT to run them.
-# This connects to the same Redis broker the worker listens on.
-_celery_client = Celery(
-    "docgen_dispatcher",
-    broker=settings.REDIS_URL,
-)
+from api.core.celery_client import celery_client
 
 
 class JobService:
@@ -71,7 +65,7 @@ class JobService:
             await self.db.refresh(new_project)
 
         # Fire-and-forget: dispatch to the worker via Redis
-        _celery_client.send_task(
+        celery_client.send_task(
             "worker.tasks.run_documentation_pipeline",
             kwargs={
                 "job_id": job.id,
@@ -81,6 +75,42 @@ class JobService:
                 "credentials": job.credentials,
                 "api_dir": job.api_dir,
             },
+        )
+
+        return job
+
+    async def submit_task(
+        self, 
+        team_id: str, 
+        submitted_by: str, 
+        task_name: str, 
+        task_kwargs: dict, 
+        source_type: str, 
+        path: str, 
+        project_name: Optional[str] = None
+    ) -> GenerationJob:
+        """
+        Generic method to create a job and dispatch a specific task to the worker.
+        Centralizes Celery interaction in the service layer.
+        """
+        job = await job_repo.create_job(
+            self.db,
+            team_id=team_id,
+            submitted_by=submitted_by,
+            obj_in=JobCreate(
+                source_type=source_type,
+                path=path,
+                project_name=project_name or path
+            )
+        )
+        
+        # Dispatch to worker
+        celery_client.send_task(
+            task_name,
+            kwargs={
+                "job_id": job.id,
+                **task_kwargs
+            }
         )
 
         return job
