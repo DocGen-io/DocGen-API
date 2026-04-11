@@ -101,6 +101,9 @@ def run_documentation_pipeline(self, job_id: str, source_type: str, path: str, p
             # Always clean up the temporary config file
             if config_path and os.path.exists(config_path):
                 os.remove(config_path)
+            
+            from src.utils.weaviateStore import WeaviateStore
+            WeaviateStore.close()
 
 @celery_app.task(bind=True, name="worker.tasks.update_weaviate_documentation_chunk")
 def update_weaviate_documentation_chunk(self, team_id: str, endpoint_id: str, proposed_content: str):
@@ -147,7 +150,9 @@ def run_semantic_search_task(self, job_id: str, project_name: str, query: str):
     except Exception as exc:
         update_job_status(job_id, JobStatus.FAILED, error=str(exc))
         raise self.retry(exc=exc, max_retries=0)
-
+    finally:
+        from src.utils.weaviateStore import WeaviateStore
+        WeaviateStore.close()
 
 @celery_app.task(bind=True, name="worker.tasks.run_clustering_task")
 def run_clustering_task(self, job_id: str, project_name: str, n_clusters: int = None):
@@ -182,7 +187,9 @@ def run_clustering_task(self, job_id: str, project_name: str, n_clusters: int = 
     except Exception as exc:
         update_job_status(job_id, JobStatus.FAILED, error=str(exc))
         raise self.retry(exc=exc, max_retries=0)
-
+    finally:
+        from src.utils.weaviateStore import WeaviateStore
+        WeaviateStore.close()
 
 @celery_app.task(bind=True, name="worker.tasks.generate_examples_task")
 def generate_examples_task(self, job_id: str, project_name: str, team_id: str, path: str, method: str):
@@ -206,6 +213,9 @@ def generate_examples_task(self, job_id: str, project_name: str, team_id: str, p
     except Exception as exc:
         update_job_status(job_id, JobStatus.FAILED, error=str(exc))
         raise self.retry(exc=exc, max_retries=0)
+    finally:
+        from src.utils.weaviateStore import WeaviateStore
+        WeaviateStore.close()
 
 @celery_app.task(bind=True, name="worker.tasks.list_endpoints_task")
 def list_endpoints_task(self, job_id: str, project_name: str, team_id: str):
@@ -226,3 +236,6 @@ def list_endpoints_task(self, job_id: str, project_name: str, team_id: str):
         logger.error(f"[Job {job_id}] list_endpoints_task failed: {exc}")
         update_job_status(job_id, JobStatus.FAILED, error=str(exc))
         raise self.retry(exc=exc, max_retries=0)
+    finally:
+        from src.utils.weaviateStore import WeaviateStore
+        WeaviateStore.close()
