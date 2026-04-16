@@ -145,7 +145,7 @@ def run_semantic_search_task(self, job_id: str, project_name: str, query: str):
     try:
         from src.pipelines.query_pipeline import QueryPipeline
         pipeline = QueryPipeline()
-        results = pipeline.run(query)
+        results = pipeline.run(query, project_name=project_name)
         update_job_status(job_id, JobStatus.COMPLETED, result={"results": results})
         return results
     except Exception as exc:
