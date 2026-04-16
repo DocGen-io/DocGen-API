@@ -20,6 +20,7 @@ from api.services.worker_service import (
     save_project_grouping,
     get_job_basic_details
 )
+from src.utils.rbac_utils import get_project_name
 
 logger = logging.getLogger(__name__)
 
@@ -49,19 +50,19 @@ def run_documentation_pipeline(self, job_id: str, source_type: str, path: str, p
             # Import pipeline locally
 
             # Wrap pipeline execution in tracing context
-            final_project_name = project_name or os.path.basename(os.path.normpath(path))
+            final_project_name = project_name or get_project_name(path)
 
             # Inject injected runtime config file path
             logger.info(f"[Job {job_id}] Initializing pipeline...")
             from src.pipelines.documentation_pipeline import DocumentationPipeline
-            pipeline = DocumentationPipeline(config_path=config_path,
-             api_details={
-                    'job_id': job_id,
-                    'team_id': team_id,
-                    'user_id': user_id,
-                    'project_name': final_project_name
-                }
+            from src.utils.pipeline_context import PipelineContext
+            ctx = PipelineContext(
+                project_name=final_project_name,
+                job_id=job_id,
+                team_id=team_id,
+                user_id=user_id,
             )
+            pipeline = DocumentationPipeline(config_path=config_path, ctx=ctx)
 
             with trace_job_context(job_id, project_name=final_project_name):
                 result = pipeline.run(
