@@ -25,12 +25,12 @@ class GenerationJob(Base):
     __tablename__ = "generation_jobs"
 
     id = Column(String, primary_key=True, default=generate_uuid, index=True)
-    team_id = Column(String, ForeignKey("teams.id", ondelete="CASCADE"), nullable=False)
-    submitted_by = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    team_id = Column(String, ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True)
+    submitted_by = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
 
     source_type = Column(String, nullable=False)  # "git" or "local"
     path = Column(String, nullable=False)
-    project_name = Column(String, nullable=True)
+    project_name = Column(String, nullable=True, index=True)
     credentials = Column(String, nullable=True)
     api_dir = Column(String, nullable=True)  # Optional subfolder for microservice API extraction
 
