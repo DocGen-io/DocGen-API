@@ -17,15 +17,15 @@ class DocumentationRevision(Base):
     __tablename__ = "documentation_revisions"
 
     id = Column(String(255), primary_key=True, default=lambda: uuid.uuid4().hex)
-    team_id = Column(String(255), ForeignKey("teams.id", ondelete="CASCADE"), nullable=False)
-    endpoint_id = Column(String(255), nullable=False)  # Weaviate node_id or similar UI ref
+    team_id = Column(String(255), ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True)
+    endpoint_id = Column(String(255), nullable=False, index=True)  # Weaviate node_id or similar UI ref
     
     original_content = Column(Text, nullable=False)
     proposed_content = Column(Text, nullable=False)
     
     status = Column(Enum(RevisionStatus), default=RevisionStatus.PENDING, nullable=False)
     
-    submitted_by = Column(String(255), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    submitted_by = Column(String(255), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
 
     # Relationships
     team = relationship("Team")

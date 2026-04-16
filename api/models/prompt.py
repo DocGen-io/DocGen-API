@@ -14,4 +14,4 @@ class PromptTemplate(Base):
     is_system_default = Column(Boolean, default=False, nullable=False)
     
     # If team_id is null, it's a global system default template.
-    team_id = Column(String, ForeignKey("teams.id", ondelete="CASCADE"), nullable=True)
+    team_id = Column(String, ForeignKey("teams.id", ondelete="CASCADE"), nullable=True, index=True)

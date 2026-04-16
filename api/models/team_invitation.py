@@ -25,13 +25,13 @@ class TeamInvitation(Base):
     __tablename__ = "team_invitations"
 
     id = Column(String, primary_key=True, default=generate_uuid)
-    team_id = Column(String, ForeignKey("teams.id", ondelete="CASCADE"), nullable=False)
+    team_id = Column(String, ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True)
 
     # The user being invited or requesting
-    invitee_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    invitee_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
 
     # The user who triggered the action (admin for INVITE, the user themselves for REQUEST)
-    actor_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    actor_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
 
     type = Column(SQLEnum(InvitationType), nullable=False)
     status = Column(SQLEnum(InvitationStatus), default=InvitationStatus.PENDING, nullable=False)

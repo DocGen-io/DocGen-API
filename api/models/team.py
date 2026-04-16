@@ -40,8 +40,8 @@ class TeamMember(Base):
     )
 
     id = Column(String, primary_key=True, default=generate_uuid)
-    team_id = Column(String, ForeignKey("teams.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    team_id = Column(String, ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     role = Column(SQLEnum(TeamRole), default=TeamRole.VIEWER, nullable=False)
 
     # Relationships

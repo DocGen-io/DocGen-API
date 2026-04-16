@@ -12,7 +12,7 @@ class Project(Base):
 
     id = Column(String, primary_key=True, default=generate_uuid)
     name = Column(String, index=True, nullable=False)
-    team_id = Column(String, ForeignKey("teams.id"), nullable=False)
+    team_id = Column(String, ForeignKey("teams.id"), nullable=False, index=True)
     description = Column(String, nullable=True)
     # The source type (e.g., git, local) and path
     source_type = Column(String, nullable=False)
