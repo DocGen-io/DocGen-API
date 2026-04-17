@@ -7,7 +7,8 @@ from typing import Any, Dict
 
 DEFAULT_TEAM_CONFIG: Dict[str, Any] = {
     "rag": {
-        "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+        "active_embedder": "gemini",
+        "embedding_model": "gemini-2.5-flash-lite",
         "top_k_retriever": 2,
         "top_k_reranker": 2,
         "chunk_size": 500,
