@@ -6,6 +6,8 @@ ENV PYTHONPATH=${WORKDIR}
 ENV UV_PROJECT_ENVIRONMENT=${WORKDIR}/.venv
 ENV PATH="$UV_PROJECT_ENVIRONMENT/bin:$PATH"
 
+WORKDIR /app
+
 # ── System deps ──────────────────────────────────────────────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -43,8 +45,7 @@ COPY --chown=docgen:docgen DocGen-API/shared/     shared/
 COPY --chown=docgen:docgen DocGen-API/worker/     worker/
 
 # ── Entrypoint ────────────────────────────────────────────────────────────────
-CMD ["uv", "run", "--project", "worker", \
-    "watchmedo", "auto-restart", \
+CMD ["watchmedo", "auto-restart", \
     "--directory=/app/src", \
     "--directory=/app/api", \
     "--directory=/app/worker", \

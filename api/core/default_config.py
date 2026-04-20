@@ -14,11 +14,11 @@ DEFAULT_TEAM_CONFIG: Dict[str, Any] = {
         "chunk_size": 500,
     },
     "process_grouping_automatically": False,
-    "WEAVIATE_URL": os.getenv("WEAVIATE_URL", "http://127.0.0.1:8080"),
+    "WEAVIATE_URL": os.getenv("WEAVIATE_URL", "http://weaviate:8080"),
     "WEAVIATE_API_KEY": None,
     "tracing": True,
     "phoenix_data_dir": "~/.phoenix_data",
-    "PHOENIX_HOST": os.getenv("PHOENIX_HOST", "http://localhost:6006"),
+    "PHOENIX_HOST": os.getenv("PHOENIX_HOST", "http://phoenix:6006"),
     
     "code_analyzer": {
         "active_generator": "gemini",
