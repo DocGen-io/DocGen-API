@@ -157,3 +157,25 @@ async def generate_examples(
         path=project_name,
         project_name=project_name
     )
+
+@router.get("/{project_name}/details", response_model=JobResponse)
+async def get_endpoint_details(
+    project_name: str,
+    path: str = Query(..., description="The API Route Path"),
+    method: str = Query(..., description="The HTTP Method"),
+    team_id: str = Query(..., description="The ID of the Team"),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+    membership = Depends(verify_team_membership),
+    job_service: JobService = Depends(get_job_service)
+):
+    """Trigger a background task to fetch full details for a single endpoint schema."""
+    return await job_service.submit_task(
+        team_id=team_id,
+        submitted_by=current_user.id,
+        task_name="worker.tasks.get_endpoint_details_task",
+        task_kwargs={"project_name": project_name, "team_id": team_id, "path": path, "method": method},
+        source_type="get_endpoint",
+        path=path,
+        project_name=project_name
+    )
