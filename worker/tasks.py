@@ -140,15 +140,19 @@ def run_semantic_search_task(self, job_id: str, project_name: str, query: str):
     """
     Background task for semantic searching across endpoints.
     """
-    # set_trace_job_id(job_id)
+    logger.info(f"[Job {job_id}] Received run_semantic_search_task for query: '{query}'")
     update_job_status(job_id, JobStatus.PROCESSING)
     try:
         from src.pipelines.query_pipeline import QueryPipeline
-        pipeline = QueryPipeline()
+        logger.info(f"[Job {job_id}] Initializing QueryPipeline...")
+        pipeline = QueryPipeline(project_name=project_name)
+        logger.info(f"[Job {job_id}] Executing pipeline.run...")
         results = pipeline.run(query, project_name=project_name)
+        logger.info(f"[Job {job_id}] Query pipeline finished with {len(results)} results")
         update_job_status(job_id, JobStatus.COMPLETED, result={"results": results})
         return results
     except Exception as exc:
+        logger.error(f"[Job {job_id}] Semantic search failed: {exc}")
         update_job_status(job_id, JobStatus.FAILED, error=str(exc))
         raise self.retry(exc=exc, max_retries=0)
     finally:
@@ -232,6 +236,32 @@ def list_endpoints_task(self, job_id: str, project_name: str, team_id: str):
         return endpoints
     except Exception as exc:
         logger.error(f"[Job {job_id}] list_endpoints_task failed: {exc}")
+        update_job_status(job_id, JobStatus.FAILED, error=str(exc))
+        raise self.retry(exc=exc, max_retries=0)
+    finally:
+        from src.utils.weaviateStore import WeaviateStore
+        WeaviateStore.close()
+
+@celery_app.task(bind=True, name="worker.tasks.get_endpoint_details_task")
+def get_endpoint_details_task(self, job_id: str, project_name: str, team_id: str, path: str, method: str):
+    """
+    Background task to fetch the full raw JSON details for a single endpoint.
+    """
+    update_job_status(job_id, JobStatus.PROCESSING)
+    try:
+        from src.serviceLayer.endpoint_service import EndpointService
+        
+        service = EndpointService(weaviate_url=settings.WEAVIATE_URL)
+        endpoint_data = service.fetch_endpoint(project_name=project_name, team_id=team_id, path=path, method=method)
+        
+        if not endpoint_data:
+            update_job_status(job_id, JobStatus.FAILED, error="Endpoint not found")
+            return None
+            
+        update_job_status(job_id, JobStatus.COMPLETED, result={"endpoint": endpoint_data})
+        return endpoint_data
+    except Exception as exc:
+        logger.error(f"[Job {job_id}] get_endpoint_details_task failed: {exc}")
         update_job_status(job_id, JobStatus.FAILED, error=str(exc))
         raise self.retry(exc=exc, max_retries=0)
     finally:
