@@ -15,7 +15,10 @@ class DashboardService:
         self.db = db
 
     async def _get_total_jobs(self, team_id: str) -> int:
-        stmt = select(func.count(GenerationJob.id)).where(GenerationJob.team_id == team_id)
+        stmt = select(func.count(GenerationJob.id)).where(
+            GenerationJob.team_id == team_id,
+            GenerationJob.source_type.in_(["git", "local"])
+        )
         result = await self.db.execute(stmt)
         return result.scalar() or 0
 

@@ -16,10 +16,13 @@ class JobRepository(BaseRepository[GenerationJob, JobCreate, JobCreate]):
     async def get_by_team(self, db: AsyncSession, team_id: str) -> List[GenerationJob]:
         result = await db.execute(
             select(self.model)
-            .where(self.model.team_id == team_id)
+            .where(
+                self.model.team_id == team_id,
+                self.model.source_type.in_(["git", "local"])
+            )
             .order_by(self.model.created_at.desc())
         )
-        return result.scalars().all()  # type: ignore
+        return result.scalars().all()
 
     async def create_job(
         self, db: AsyncSession, *, team_id: str, submitted_by: str, obj_in: JobCreate
