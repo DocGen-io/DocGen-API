@@ -17,11 +17,17 @@ from api.schemas.team import (
 )
 from api.services.team_service import TeamService
 
+from api.schemas.dashboard import DashboardStatsResponse
+from api.services.dashboard_service import DashboardService
+
 router = APIRouter(prefix="/teams", tags=["Teams"])
 
 
 def get_team_service(db: AsyncSession = Depends(get_db)) -> TeamService:
     return TeamService(db)
+
+def get_dashboard_service(db: AsyncSession = Depends(get_db)) -> DashboardService:
+    return DashboardService(db)
 
 
 # ── Team CRUD ─────────────────────────────────────────────────────────────────
@@ -61,6 +67,15 @@ async def get_team(
 ):
     """Get team details (public endpoint)."""
     return await svc.get_team(team_id)
+
+@router.get("/{team_id}/dashboard-stats", response_model=DashboardStatsResponse)
+async def get_dashboard_stats(
+    team_id: str,
+    _: TeamMember = Depends(verify_team_membership),
+    svc: DashboardService = Depends(get_dashboard_service),
+):
+    """Get aggregated dashboard statistics for a team."""
+    return await svc.get_team_stats(team_id)
 
 
 @router.get("/invite/{invite_token}", response_model=TeamResponse)
