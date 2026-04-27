@@ -123,3 +123,18 @@ class JobService:
 
     async def list_team_jobs(self, team_id: str) -> List[GenerationJob]:
         return await job_repo.get_by_team(self.db, team_id)
+
+    async def delete_job(self, team_id: str, job_id: str) -> bool:
+        """Deletes a job and its associated logs if it belongs to the specified team."""
+        job = await job_repo.get(self.db, job_id)
+        if not job or job.team_id != team_id:
+            return False
+            
+        # Delete logs explicitly to avoid FK constraint issues if cascade is not set
+        stmt = select(JobLog).filter(JobLog.job_id == job_id)
+        result = await self.db.execute(stmt)
+        for log in result.scalars().all():
+            await self.db.delete(log)
+            
+        await job_repo.delete(self.db, id=job_id)
+        return True

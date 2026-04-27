@@ -65,6 +65,20 @@ async def get_job_status(
     return JobStatusResponse(job=job, logs=logs)
 
 
+@team_router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_team_job(
+    team_id: str,
+    job_id: str,
+    membership=Depends(verify_team_membership),
+    job_service: JobService = Depends(get_job_service),
+):
+    """Delete a generation job and its logs."""
+    success = await job_service.delete_job(team_id=team_id, job_id=job_id)
+    if not success:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+    return
+
+
 
 @team_router.get("/", response_model=List[JobResponse])
 async def list_team_jobs(
