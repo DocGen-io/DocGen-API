@@ -142,10 +142,12 @@ def run_semantic_search_task(self, job_id: str, project_name: str, query: str):
     """
     logger.info(f"[Job {job_id}] Received run_semantic_search_task for query: '{query}'")
     update_job_status(job_id, JobStatus.PROCESSING)
+    config_path = None
     try:
+        config_path = get_dynamic_config_path(job_id)
         from src.pipelines.query_pipeline import QueryPipeline
         logger.info(f"[Job {job_id}] Initializing QueryPipeline...")
-        pipeline = QueryPipeline(project_name=project_name)
+        pipeline = QueryPipeline(config_path=config_path, project_name=project_name)
         logger.info(f"[Job {job_id}] Executing pipeline.run...")
         results = pipeline.run(query, project_name=project_name)
         logger.info(f"[Job {job_id}] Query pipeline finished with {len(results)} results")
@@ -156,6 +158,8 @@ def run_semantic_search_task(self, job_id: str, project_name: str, query: str):
         update_job_status(job_id, JobStatus.FAILED, error=str(exc))
         raise self.retry(exc=exc, max_retries=0)
     finally:
+        if config_path and os.path.exists(config_path):
+            os.remove(config_path)
         from src.utils.weaviateStore import WeaviateStore
         WeaviateStore.close()
 
@@ -166,13 +170,15 @@ def run_clustering_task(self, job_id: str, project_name: str, n_clusters: int = 
     """
     # set_trace_job_id(job_id)
     update_job_status(job_id, JobStatus.PROCESSING)
+    config_path = None
     try:
+        config_path = get_dynamic_config_path(job_id)
         from src.components.EndpointClusterer import EndpointClusterer
         
         job_details = get_job_basic_details(job_id)
         team_id = job_details.get("team_id") if job_details else None
 
-        clusterer = EndpointClusterer()
+        clusterer = EndpointClusterer(config_path=config_path)
         results = clusterer.run(
             n_clusters=n_clusters,
             api_details={'project_name': project_name, 'team_id': team_id} if team_id else None,
@@ -190,6 +196,8 @@ def run_clustering_task(self, job_id: str, project_name: str, n_clusters: int = 
         update_job_status(job_id, JobStatus.FAILED, error=str(exc))
         raise self.retry(exc=exc, max_retries=0)
     finally:
+        if config_path and os.path.exists(config_path):
+            os.remove(config_path)
         from src.utils.weaviateStore import WeaviateStore
         WeaviateStore.close()
 
@@ -200,10 +208,12 @@ def generate_examples_task(self, job_id: str, project_name: str, team_id: str, p
     """
     # set_trace_job_id(job_id)
     update_job_status(job_id, JobStatus.PROCESSING)
+    config_path = None
     try:
+        config_path = get_dynamic_config_path(job_id)
         from src.components.FetchExampleGenerator import FetchExampleGenerator
         
-        generator = FetchExampleGenerator(weaviate_url=settings.WEAVIATE_URL)
+        generator = FetchExampleGenerator(config_path=config_path)
         results = generator.run(
             team_id=team_id,
             project_name=project_name,
@@ -216,6 +226,8 @@ def generate_examples_task(self, job_id: str, project_name: str, team_id: str, p
         update_job_status(job_id, JobStatus.FAILED, error=str(exc))
         raise self.retry(exc=exc, max_retries=0)
     finally:
+        if config_path and os.path.exists(config_path):
+            os.remove(config_path)
         from src.utils.weaviateStore import WeaviateStore
         WeaviateStore.close()
 

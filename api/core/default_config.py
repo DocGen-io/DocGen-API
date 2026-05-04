@@ -14,7 +14,6 @@ DEFAULT_TEAM_CONFIG: Dict[str, Any] = {
         "chunk_size": 500,
     },
     "process_grouping_automatically": False,
-    "WEAVIATE_URL": os.getenv("WEAVIATE_URL", "http://weaviate:8080"),
     "WEAVIATE_API_KEY": None,
     "tracing": True,
     "phoenix_data_dir": "~/.phoenix_data",
