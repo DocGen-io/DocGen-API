@@ -43,12 +43,21 @@ class TeamService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid or expired invite link")
         return team
 
+
+
     async def search_teams(self, query: str) -> List[Team]:
         return await team_repo.search_by_name(self.db, query, public_only=True)
 
     # ── Invite link ───────────────────────────────────────────────────────────
 
-    async def join_via_invite_link(self, user_id: str, token: str) -> TeamMember:
+    async def join_via_invite_link(self, user_id: str, token: str, role: TeamRole | None = None) -> TeamMember:
+
+        if role and role not in TeamRole:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid role specified")
+        
+        if role is None:
+            role = TeamRole.VIEWER
+        
         team = await team_repo.get_by_invite_token(self.db, token)
         if not team:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid invite link")
@@ -56,8 +65,11 @@ class TeamService:
         existing = await team_repo.get_member(self.db, team.id, user_id)
         if existing:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Already a team member")
+        
+        new_team = await self.regenerate_invite_token(team.id) # Rotate token to prevent reuse
 
-        return await team_repo.add_member(self.db, team.id, user_id, TeamRole.VIEWER)
+
+        return await team_repo.add_member(self.db, team.id, user_id, role)
 
     async def regenerate_invite_token(self, team_id: str) -> Team:
         team = await self.get_team(team_id)

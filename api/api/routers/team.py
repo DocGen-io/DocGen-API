@@ -13,7 +13,7 @@ from api.api.dependencies import (
 )
 from api.schemas.team import (
     TeamCreate, TeamUpdate, TeamResponse, MemberRoleUpdate, MemberResponse,
-    InvitationRespond, TeamInvitationResponse,
+    InvitationRespond, TeamInvitationResponse, InviteRequest
 )
 from api.services.team_service import TeamService
 
@@ -103,11 +103,12 @@ async def update_team(
 @router.post("/join/{invite_token}", response_model=MemberResponse)
 async def join_via_invite_link(
     invite_token: str,
+    body: InviteRequest,
     current_user: User = Depends(get_current_active_user),
     svc: TeamService = Depends(get_team_service),
 ):
     """Join a team using a shareable invite link."""
-    return await svc.join_via_invite_link(current_user.id, invite_token)
+    return await svc.join_via_invite_link(current_user.id, invite_token,body.role)
 
 
 @router.post("/{team_id}/invite-link/regenerate", response_model=TeamResponse)
@@ -138,14 +139,13 @@ async def request_to_join(
 async def send_invite(
     team_id: str,
     user_id: str,
+    body: InviteRequest,
     current_member: TeamMember = Depends(verify_team_maintainer),
     current_user: User = Depends(get_current_active_user),
     svc: TeamService = Depends(get_team_service),
 ):
     """Admin/Maintainer: send a direct invite to a user."""
-    return await svc.send_invite(current_user.id, team_id, user_id)
-
-
+    return await svc.send_invite(current_user.id, team_id, user_id, body.role)
 # ── Invitation management ─────────────────────────────────────────────────────
 
 @router.get("/{team_id}/invitations", response_model=List[TeamInvitationResponse])

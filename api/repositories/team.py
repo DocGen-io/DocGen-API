@@ -97,14 +97,14 @@ class TeamRepository(BaseRepository[Team, TeamCreate, TeamCreate]):
         member = TeamMember(team_id=team_id, user_id=user_id, role=role)
         db.add(member)
         await db.commit()
-        await db.refresh(member)
+        await db.refresh(member, ["user"])
         return member
 
     async def update_member_role(self, db: AsyncSession, member: TeamMember, role: TeamRole) -> TeamMember:
         member.role = role
         db.add(member)
         await db.commit()
-        await db.refresh(member)
+        await db.refresh(member, ["user"])
         return member
 
     async def remove_member(self, db: AsyncSession, member: TeamMember) -> None:

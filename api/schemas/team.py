@@ -53,6 +53,9 @@ class InvitationRespond(BaseModel):
     accept: bool
 
 
+class InviteRequest(BaseModel):
+    role: TeamRole = TeamRole.VIEWER
+
 class TeamInvitationResponse(BaseModel):
     id: str
     team_id: str
